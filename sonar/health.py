@@ -38,7 +38,9 @@ def rows(conn, data: dict, now: int) -> list[dict]:
             "id": node["id"], "label": node.get("label", node["id"]), "status": status(node, h, now),
             "last_ok": ago(h and h["last_ok"], now),
             "items": h["items_last_run"] if h and h["items_last_run"] is not None else "-",
-            "error": f"{ago(h['last_error'], now)}: {h['last_error_msg']}" if h and h["last_error"] else "",
+            # Only a current error: one that came after the last success. Fixed ones would just confuse.
+            "error": f"{ago(h['last_error'], now)}: {h['last_error_msg']}"
+                     if h and h["last_error"] and (not h["last_ok"] or h["last_error"] >= h["last_ok"]) else "",
         })
     return out
 

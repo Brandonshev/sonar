@@ -52,3 +52,13 @@ def test_prune_keeps_two_weeks_of_scores():
         conn.execute("INSERT INTO scores VALUES (?, ?, 1, 1, '[]')", (item, NOW - days * DAY))
     housekeeping.prune(conn, NOW)
     assert [r[0] for r in conn.execute("SELECT (? - ts) / 86400 FROM scores ORDER BY ts", (NOW,))] == [13, 1]
+
+
+def test_health_hides_errors_that_were_fixed():
+    conn = db.connect(":memory:")
+    data = {"nodes": [{"id": "youtube", "type": "source.youtube", "enabled": True, "every": "3h"}]}
+    db.record_run(conn, "youtube", ok=False, error="RuntimeError: YOUTUBE_API_KEY is not set", now=NOW - 3600)
+    assert "not set" in health.rows(conn, data, NOW)[0]["error"]
+    db.record_run(conn, "youtube", ok=True, items=243, now=NOW - 600)
+    row = health.rows(conn, data, NOW)[0]
+    assert row["status"] == "OK" and row["error"] == ""
