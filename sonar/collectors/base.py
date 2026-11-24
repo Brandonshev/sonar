@@ -2,6 +2,7 @@
 import json
 import logging
 import time
+import urllib.error
 import urllib.request
 
 from .. import USER_AGENT
@@ -15,6 +16,8 @@ class Collector:
     """
 
     timeout = 20
+    retries = 0         # extra tries on 429/5xx, with exponential backoff (for fragile sources)
+    backoff_seconds = 20
 
     def __init__(self, node: dict):
         self.node = node
@@ -25,16 +28,24 @@ class Collector:
     def fetch(self) -> list[tuple[dict, dict]]:
         raise NotImplementedError
 
-    def request(self, url: str, headers: dict | None = None, data: bytes | dict | None = None):
-        """GET (or POST when data is given). Returns (parsed JSON, response headers).
+    def request(self, url: str, headers: dict | None = None, data: bytes | dict | None = None, raw: bool = False):
+        """GET (or POST when data is given). Returns (parsed JSON or raw bytes, response headers).
         All HTTP goes through here so tests can swap it for recorded responses."""
         headers = {"User-Agent": USER_AGENT, **(headers or {})}
         if isinstance(data, dict):
             data = json.dumps(data).encode()
             headers.setdefault("Content-Type", "application/json")
-        req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            return json.load(r), r.headers
+        for attempt in range(self.retries + 1):
+            try:
+                req = urllib.request.Request(url, data=data, headers=headers)
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    return (r.read() if raw else json.load(r)), r.headers
+            except urllib.error.HTTPError as e:
+                if attempt == self.retries or not (e.code == 429 or e.code >= 500):
+                    raise
+                wait = self.backoff_seconds * 2 ** attempt
+                self.log.warning("HTTP %d from %s, retrying in %ds", e.code, url.split("?")[0], wait)
+                time.sleep(wait)
 
     def get_json(self, url: str, headers: dict | None = None):
         return self.request(url, headers)[0]

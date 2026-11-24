@@ -1,0 +1,19 @@
+{
+ "batchcomplete": true,
+ "query": {
+  "pages": [
+   {
+    "pageid": 76545228,
+    "ns": 0,
+    "title": "Ladybird (web browser)",
+    "pageprops": {
+     "page_image_free": "Wikipedia's_main_page_on_Ladybird_(2026).png",
+     "wikibase-shortdesc": "Open-source web browser",
+     "wikibase_item": "Q114127561"
+    },
+    "description": "Open-source web browser",
+    "descriptionsource": "local"
+   }
+  ]
+ }
+}

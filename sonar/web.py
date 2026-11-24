@@ -233,14 +233,17 @@ class Site:
             sql += f" AND i.source {'NOT ' if neg else ''}IN ({','.join('?' * len(srcs)) or 'NULL'})"
             args += srcs
         rows = [dict(r) for r in conn.execute(sql + " ORDER BY s.score DESC, s.heat DESC LIMIT ?", (*args, limit))]
-        keys = {r["entity_key"] for r in rows if r["entity_key"]}
-        also = {}
+        keys = {k for r in rows for k in (r["entity_key"], r["alias_key"]) if k}
+        also: dict = {}
         if keys:
-            for k, s in conn.execute(f"SELECT entity_key, source FROM items WHERE entity_key IN ({','.join('?' * len(keys))})",
-                                     tuple(keys)):
-                also.setdefault(k, set()).add(s)
+            q = ",".join("?" * len(keys))
+            for e, a, s in conn.execute(f"SELECT entity_key, alias_key, source FROM items "
+                                        f"WHERE entity_key IN ({q}) OR alias_key IN ({q})", (*keys, *keys)):
+                for k in (e, a):
+                    if k in keys:
+                        also.setdefault(k, set()).add(s)
         for r in rows:
-            r["sources"] = sorted(also.get(r["entity_key"], {r["source"]}))
+            r["sources"] = sorted({r["source"]}.union(*(also.get(k, set()) for k in (r["entity_key"], r["alias_key"]) if k)))
             m = self.metric.get(r["source"])
             pts = conn.execute("SELECT ts, value FROM snapshots WHERE item_id=? AND metric=? AND ts>=? ORDER BY ts",
                                (r["id"], m, now - 7 * DAY)).fetchall() if m else []
@@ -285,7 +288,8 @@ class Site:
             if not item:
                 return None
             same = [dict(r) for r in conn.execute(
-                "SELECT * FROM items WHERE entity_key = ? ORDER BY source", (item["entity_key"],))] if item["entity_key"] else [dict(item)]
+                "SELECT * FROM items WHERE id = ? OR entity_key = ? OR alias_key = ? ORDER BY source LIMIT 20",
+                (item_id, item["entity_key"], item["alias_key"]))]
             ids = [s["id"] for s in same]
             q = ",".join("?" * len(ids))
             charts = []
@@ -333,11 +337,14 @@ class Site:
             rows = health.rows(conn, self.data, now)
             totals = conn.execute("SELECT (SELECT COUNT(*) FROM items), (SELECT COUNT(*) FROM snapshots), "
                                   "(SELECT MIN(ts) FROM snapshots)").fetchone()
+            yt = conn.execute("SELECT units FROM api_usage WHERE source='youtube' AND day=?",
+                              (datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d"),)).fetchone()
         trs = "".join(
             f'<tr><td>{escape(r["label"])}</td><td><span class="st {r["status"]}">{r["status"]}</span></td>'
             f'<td>{r["last_ok"]}</td><td class="hide-sm">{r["items"]}</td>'
             f'<td class="err">{escape(r["error"][:300])}</td></tr>' for r in rows)
         since = f" · collecting since {sydney(totals[2])}" if totals[2] else ""
+        since += f" · YouTube quota today {yt[0]:,} / 10,000 units" if yt else ""
         body = (f"<h1>Health</h1><p class='sub'>{totals[0]:,} items · {totals[1]:,} snapshots{since}</p>"
                 f"<table><tr><th>Node</th><th>Status</th><th>Last OK</th><th class='hide-sm'>Items</th><th>Last error</th></tr>{trs}</table>")
         return layout("Health", body, "Health", self.tabs)

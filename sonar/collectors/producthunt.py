@@ -8,7 +8,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 from .. import USER_AGENT
-from ..entities import entity_key
+from ..entities import alias_key, entity_key
 from .base import Collector
 
 API = "https://api.producthunt.com/v2/api/graphql"
@@ -65,6 +65,7 @@ def to_result(post: dict, website: str | None):
     topics = [e["node"]["name"] for e in post.get("topics", {}).get("edges", [])]
     item = {
         "kind": "product",
+        "alias_key": alias_key(post["name"]),
         "external_id": post["id"],
         "title": f"{post['name']}: {post.get('tagline', '')}".rstrip(": "),
         "url": post["url"],

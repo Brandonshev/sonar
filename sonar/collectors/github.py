@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 from urllib.parse import quote
 
+from ..entities import alias_key
 from .base import Collector
 
 API = "https://api.github.com"
@@ -66,6 +67,7 @@ class GitHub(Collector):
 def to_result(repo: dict):
     item = {
         "kind": "repo",
+        "alias_key": alias_key(repo["full_name"].split("/")[1], min_len=6),  # repo names are often plain words
         "external_id": repo["full_name"].lower(),
         "title": repo["full_name"],
         "url": repo["html_url"],

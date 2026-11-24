@@ -121,13 +121,16 @@ def score_all(conn, node: dict, now: int | None = None) -> int:
         if r["heat"] > 0:
             r["early_mult"] = 1 + p["early_weight"] / math.log10(max(r["now"], 0) + 10)
             r["heat"] *= r["early_mult"]
+    def keys(item):  # same thing = same entity (URL/repo) or same careful name (see entities.alias_key)
+        return {k for k in (item["entity_key"], item["alias_key"]) if k}
+
     climbing: dict = {}
     for r in best.values():
-        key = r["item"]["entity_key"]
-        if key and r["raw_heat"] >= p["cross_source_min_heat"]:
-            climbing.setdefault(key, set()).add(r["item"]["source"])
+        if r["raw_heat"] >= p["cross_source_min_heat"]:
+            for k in keys(r["item"]):
+                climbing.setdefault(k, set()).add(r["item"]["source"])
     for r in best.values():
-        others = sorted(climbing.get(r["item"]["entity_key"], set()) - {r["item"]["source"]})
+        others = sorted(set().union(*(climbing.get(k, set()) for k in keys(r["item"]))) - {r["item"]["source"]})
         r["others"] = others
         if others and r["heat"] > 0:
             r["heat"] *= 1 + p["cross_source_bonus_pct"] / 100 * len(others)

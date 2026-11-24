@@ -3,8 +3,9 @@ import logging
 import os
 from pathlib import Path
 
-VERSION = "0.6.0"
-USER_AGENT = f"Sonar/{VERSION}"
+VERSION = "0.7.0"
+# Wikimedia and others ask for a contact URL in the User-Agent.
+USER_AGENT = f"Sonar/{VERSION} (+https://github.com/Brandonshev/sonar)"
 ROOT = Path(__file__).resolve().parent.parent
 
 

@@ -1,0 +1,27 @@
+{
+ "batchcomplete": true,
+ "query": {
+  "redirects": [
+   {
+    "from": "Ladybird",
+    "to": "Coccinellidae"
+   }
+  ],
+  "pages": [
+   {
+    "pageid": 18973752,
+    "ns": 0,
+    "title": "Coccinellidae",
+    "pageprops": {
+     "defaultsort": "Coccinellidae",
+     "page_image_free": "Coccinella-septempunctata-15-fws.jpg",
+     "wikibase-badge-Q17437796": "",
+     "wikibase-shortdesc": "Family of beetles",
+     "wikibase_item": "Q25327"
+    },
+    "description": "Family of beetles",
+    "descriptionsource": "local"
+   }
+  ]
+ }
+}

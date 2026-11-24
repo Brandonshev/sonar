@@ -1,0 +1,19 @@
+{
+ "batchcomplete": true,
+ "query": {
+  "pages": [
+   {
+    "pageid": 25676,
+    "ns": 0,
+    "title": "Radar",
+    "pageprops": {
+     "page_image_free": "Radar_antenna.jpg",
+     "wikibase-shortdesc": "Object detection system using radio waves",
+     "wikibase_item": "Q47528"
+    },
+    "description": "Object detection system using radio waves",
+    "descriptionsource": "local"
+   }
+  ]
+ }
+}

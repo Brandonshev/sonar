@@ -1,0 +1,21 @@
+{
+ "batchcomplete": true,
+ "query": {
+  "pages": [
+   {
+    "pageid": 5422144,
+    "ns": 0,
+    "title": "Taylor Swift",
+    "pageprops": {
+     "defaultsort": "Swift, Taylor",
+     "page_image_free": "Taylor_Swift_at_the_2023_MTV_Video_Music_Awards_(3).png",
+     "wikibase-badge-Q17437796": "",
+     "wikibase-shortdesc": "American singer-songwriter (born 1989)",
+     "wikibase_item": "Q26876"
+    },
+    "description": "American singer-songwriter (born 1989)",
+    "descriptionsource": "local"
+   }
+  ]
+ }
+}

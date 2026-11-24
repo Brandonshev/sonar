@@ -75,6 +75,16 @@ MIGRATIONS = [
     """
     ALTER TABLE alerts_sent ADD COLUMN score REAL;
     """,
+    # 5: second, name-based key for careful cross-source linking (see entities.alias_key),
+    #    and a per-day API usage counter for quota-limited sources (YouTube)
+    """
+    ALTER TABLE items ADD COLUMN alias_key TEXT;
+    CREATE INDEX items_alias_key ON items (alias_key);
+    CREATE TABLE api_usage (source TEXT NOT NULL, day TEXT NOT NULL, units INTEGER NOT NULL DEFAULT 0,
+                            PRIMARY KEY (source, day));
+    -- remembered name lookups (e.g. "does Wikipedia have an article for name:radarly?") so they run once
+    CREATE TABLE lookups (key TEXT PRIMARY KEY, result TEXT, ts INTEGER NOT NULL);
+    """,
 ]
 
 ITEM_FIELDS = ("kind", "external_id", "title", "url", "category")
@@ -107,14 +117,15 @@ def upsert_item(conn: sqlite3.Connection, source: str, item: dict, now: int | No
     now = now or int(time.time())
     key = item.get("entity_key") or entity_key(item.get("url"))
     row = conn.execute(
-        """INSERT INTO items (source, kind, external_id, title, url, category, first_seen, meta_json, entity_key)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO items (source, kind, external_id, title, url, category, first_seen, meta_json, entity_key, alias_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (source, external_id) DO UPDATE SET
              kind = excluded.kind, title = excluded.title, url = excluded.url,
              category = excluded.category, meta_json = excluded.meta_json,
-             entity_key = excluded.entity_key
+             entity_key = excluded.entity_key, alias_key = excluded.alias_key
            RETURNING id""",
-        (source, *(item.get(f) for f in ITEM_FIELDS), now, json.dumps(item.get("meta") or {}), key),
+        (source, *(item.get(f) for f in ITEM_FIELDS), now, json.dumps(item.get("meta") or {}), key,
+         item.get("alias_key")),
     ).fetchone()
     return row[0]
 

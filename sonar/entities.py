@@ -4,6 +4,7 @@
   https://www.example.com/        -> site:example.com      (a homepage = a product)
   https://example.com/blog/post   -> url:example.com/blog/post   (an article: exact page only)
 """
+import re
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 TRACKING = ("utm_", "ref", "ref_src", "fbclid", "gclid", "source", "via", "mc_cid", "mc_eid")
@@ -41,3 +42,26 @@ def entity_key(url: str | None) -> str | None:
     if not path and "?" not in norm:
         return f"site:{host}"
     return f"url:{norm}"
+
+
+# Generic words that are names of many unrelated things; never link on these alone.
+GENERIC_NAMES = {
+    "awesome", "project", "projects", "server", "client", "python", "github", "template", "starter", "dashboard",
+    "tracker", "notes", "assistant", "agent", "agents", "browser", "editor", "terminal", "chatgpt", "openai",
+    "claude", "gemini", "website", "portfolio", "backend", "frontend", "toolkit", "tools", "utils", "library",
+    "framework", "plugin", "plugins", "scraper", "monitor", "manager", "builder", "studio", "platform", "studio",
+    "weather", "calculator", "translator", "converter", "generator", "scanner", "launcher", "playground",
+    "worldnews", "trending", "update", "news", "today", "results", "live", "score", "scores", "match", "weather",
+}
+
+
+def alias_key(name: str | None, min_len: int = 5) -> str | None:
+    """A careful name key: 'Radarly: Spot trends' and 'acme/radarly' -> name:radarly.
+    Returns None for short or generic names, which would cause false matches."""
+    if not name:
+        return None
+    name = re.sub(r"\(.*?\)", "", name.split(":")[0].split(" - ")[0].split(" – ")[0])
+    norm = re.sub(r"[^a-z0-9]", "", name.lower())
+    if len(norm) < min_len or norm in GENERIC_NAMES or norm.isdigit():
+        return None
+    return f"name:{norm}"

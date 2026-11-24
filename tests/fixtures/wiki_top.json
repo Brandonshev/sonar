@@ -1,0 +1,43 @@
+{
+ "items": [
+  {
+   "project": "en.wikipedia",
+   "access": "all-access",
+   "year": "2026",
+   "month": "11",
+   "day": "23",
+   "articles": [
+    {
+     "article": "Main_Page",
+     "views": 4011131,
+     "rank": 1
+    },
+    {
+     "article": "Special:Search",
+     "views": 727329,
+     "rank": 2
+    },
+    {
+     "article": "Wikipedia:Featured_pictures",
+     "views": 525995,
+     "rank": 3
+    },
+    {
+     "article": "Ramayana:_Part_1",
+     "views": 365685,
+     "rank": 4
+    },
+    {
+     "article": "Grand_Theft_Auto_VI",
+     "views": 266240,
+     "rank": 5
+    },
+    {
+     "article": "Jensen_Huang",
+     "views": 234343,
+     "rank": 6
+    }
+   ]
+  }
+ ]
+}
