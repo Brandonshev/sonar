@@ -110,3 +110,17 @@ def test_score_command_prints_table(conn, monkeypatch, capsys):
     assert run.main(["--score"]) == 0
     out = capsys.readouterr().out
     assert "== github ==" in out and "small/fast" in out
+
+
+def test_source_weight_lowers_heat_and_score(conn):
+    add(conn, "hackernews", "story", {6: 0, 0: 300})
+    add(conn, "hackernews", "other", {6: 0, 0: 100})
+    node = {"id": "heat", "params": {**NODE["params"], "source_weights": {"hackernews": 0.5}}}
+    score_all(conn, NODE, now=NOW)
+    full = scores(conn)["story"]
+    conn.execute("DELETE FROM scores")
+    score_all(conn, node, now=NOW)
+    half = scores(conn)["story"]
+    assert half["heat"] == pytest.approx(full["heat"] * 0.5)
+    assert half["score"] == pytest.approx(full["score"] * 0.5, abs=0.1)
+    assert any("weighted x0.5" in r for r in json.loads(half["reasons_json"]))

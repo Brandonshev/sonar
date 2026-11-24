@@ -31,6 +31,7 @@ DEFAULTS = {
     "heat_for_100": 20,          # a heat that earns score 100 even on a quiet day
     "trend_min_heat": 5,         # emit trend.found when heat crosses this
     "metrics": {},               # {"github": {"stars": 5}} = source -> metric -> floor
+    "source_weights": {},        # {"hackernews": 0.6} = turn down noisy, high-volume sources
 }
 
 
@@ -146,6 +147,14 @@ def score_all(conn, node: dict, now: int | None = None) -> int:
         for r in group:
             r["score"] = round(min(100.0, 100 * math.log1p(max(r["heat"], 0)) / top), 1)
 
+    # Source weights come last and scale both heat and score (scores are normalised per source, so
+    # weighting heat alone would barely move them). Alerts, the digest and Lookout all see this.
+    for r in best.values():
+        r["weight"] = p["source_weights"].get(r["item"]["source"], 1.0)
+        if r["heat"] > 0:
+            r["heat"] *= r["weight"]
+            r["score"] = round(r["score"] * r["weight"], 1)
+
     with conn:
         for r in best.values():
             item = r["item"]
@@ -181,6 +190,8 @@ def explain(r: dict, p: dict) -> list[str]:
         out.append(f"normal rate: +{fmt(r['base'])} {m}/day over the previous {p['baseline_days']} days")
     if r.get("early_mult", 1) >= 1.25:
         out.append(f"still small ({fmt(r['now'])} {m}): early bonus x{r['early_mult']:.2f}")
+    if r.get("weight", 1.0) != 1.0:
+        out.append(f"{r['item']['source']} weighted x{r['weight']:g} (high-volume source)")
     if r["others"]:
         out.append(f"also climbing on {', '.join(r['others'])} (+{p['cross_source_bonus_pct'] * len(r['others'])}%)")
     return out
