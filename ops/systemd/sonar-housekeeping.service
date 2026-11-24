@@ -1,0 +1,24 @@
+[Unit]
+Description=Sonar housekeeping: thin old snapshots, weekly VACUUM
+
+[Service]
+Type=oneshot
+User=sonar
+Group=sonar
+WorkingDirectory=/opt/sonar
+Environment=SONAR_DB=/opt/sonar/data/sonar.db
+Environment=SONAR_LOG_FILE=/opt/sonar/logs/sonar.log
+ExecStart=/opt/sonar/.venv/bin/python -m sonar.housekeeping
+TimeoutStartSec=30min
+
+CPUQuota=25%
+MemoryHigh=250M
+MemoryMax=300M
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sonar/data /opt/sonar/logs

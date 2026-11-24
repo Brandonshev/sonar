@@ -1,0 +1,28 @@
+[Unit]
+Description=Sonar trend radar: run every pipeline node that is due
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sonar
+Group=sonar
+WorkingDirectory=/opt/sonar
+Environment=SONAR_DB=/opt/sonar/data/sonar.db
+Environment=SONAR_LOG_FILE=/opt/sonar/logs/sonar.log
+ExecStart=/opt/sonar/.venv/bin/python -m sonar.run --all-due
+TimeoutStartSec=14min
+
+# Stay light: this server also runs Postline, codedrop, patchbay, tradinglab and maybe Minecraft.
+CPUQuota=25%
+MemoryHigh=250M
+MemoryMax=300M
+Nice=10
+IOSchedulingClass=idle
+
+# Hardening: Sonar may only write its own data and logs.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sonar/data /opt/sonar/logs
