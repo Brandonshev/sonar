@@ -133,10 +133,15 @@ def test_digest_emails_when_configured(conn, tmp_path, monkeypatch):
     monkeypatch.setattr(digest, "ROOT", tmp_path)
     for k in ("SMTP_USER", "SMTP_PASSWORD", "DIGEST_TO"):
         monkeypatch.setenv(k, "x")
+    monkeypatch.setenv("SONAR_PUBLIC_URL", "https://sonar.example.com")
     mails = []
-    digest.run(conn, {"id": "digest", "params": {}}, now=NOW, send=lambda *a, **k: None,
+    digest.run(conn, {"id": "digest", "tz": "Australia/Sydney", "params": {}}, now=NOW, send=lambda *a, **k: None,
                email=lambda *a: mails.append(a))
-    assert mails and "<html" in mails[0][1]
+    subject, html, text = mails[0]
+    assert subject.startswith("What's climbing, ") and html is None
+    assert text.startswith("Morning,") and "1. Rocket" in text and "Rocket\n   on GitHub, about 12 times its usual pace" in text
+    assert text.count("http") == 1 and "https://sonar.example.com/digest/" in text  # one link, to our own site
+    assert "github.com/x/Rocket" not in text and "score" not in text.lower()
 
 
 # --- daily "at" schedule ---
@@ -195,7 +200,9 @@ class FakeSMTP:
     def has_extn(self, name): return self.tls
     def starttls(self): self.log.append(("starttls",))
     def login(self, u, p): self.log.append(("login", u))
-    def send_message(self, m): self.log.append(("send", m["To"]))
+    def send_message(self, m):
+        assert m["Date"] and m["Message-ID"].endswith("@x>") and m["From"] == "Sonar <sonar@x>"
+        self.log.append(("send", m["To"]))
 
 
 @pytest.mark.parametrize("host,tls,expect", [
@@ -213,5 +220,5 @@ def test_send_email_tls_rules(monkeypatch, host, tls, expect):
         with pytest.raises(RuntimeError, match="refusing"):
             notify.send_email("s", "<p>h</p>", "t")
     else:
-        notify.send_email("s", "<p>h</p>", "t")
+        notify.send_email("s", None, "t")
     assert [e[0] for e in FakeSMTP.log] == expect

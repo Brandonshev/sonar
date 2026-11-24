@@ -4,6 +4,7 @@ import os
 import smtplib
 import urllib.request
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 
 from .. import USER_AGENT
 
@@ -41,11 +42,16 @@ def email_configured() -> bool:
     return all(os.environ.get(k) for k in ("SMTP_USER", "SMTP_PASSWORD", "DIGEST_TO"))
 
 
-def send_email(subject: str, html: str, text: str) -> None:
+def send_email(subject: str, html: str | None, text: str) -> None:
+    """Plain text (plus HTML if given). Always sets Date and Message-ID: mail without them looks like spam."""
+    sender = os.environ["SMTP_USER"]
     msg = EmailMessage()
-    msg["Subject"], msg["From"], msg["To"] = subject, os.environ["SMTP_USER"], os.environ["DIGEST_TO"]
+    msg["Subject"], msg["From"], msg["To"] = subject, f"Sonar <{sender}>", os.environ["DIGEST_TO"]
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain=sender.split("@")[-1])
     msg.set_content(text)
-    msg.add_alternative(html, subtype="html")
+    if html:
+        msg.add_alternative(html, subtype="html")
     host, port = os.environ.get("SMTP_HOST", "smtp.gmail.com"), int(os.environ.get("SMTP_PORT", "587"))
     with smtplib.SMTP(host, port, timeout=30) as s:
         s.ehlo()

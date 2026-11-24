@@ -82,6 +82,43 @@ footer {{ margin-top:40px; color:var(--muted); font-size:12px; }}
 </body></html>"""
 
 
+SOURCE_NAMES = {"github": "GitHub", "hackernews": "Hacker News", "producthunt": "Product Hunt", "youtube": "YouTube",
+                "tiktok": "TikTok", "instagram": "Instagram", "wikipedia": "Wikipedia", "google_trends": "Google searches",
+                "google_trends_rising": "rising Google searches", "companies": "company news", "reddit": "Reddit"}
+
+
+def email_text(d: dict, now: int, tz: str, page: str | None) -> tuple[str, str]:
+    """(subject, plain-text body) for the email version: short, personal and with one link, to your
+    own dashboard. Gmail treats bulk-looking mail (lots of outside links, scores, HTML tables) as spam."""
+    when = datetime.fromtimestamp(now, ZoneInfo(tz))
+    leaders = sorted((r for rows in d["top"].values() for r in rows), key=lambda r: -r["score"])[:3]
+    lines = ["Morning,", ""]
+    if leaders:
+        lines.append("Here's what picked up fastest in the last day:")
+        lines.append("")
+        for i, r in enumerate(leaders, 1):
+            title = (r["title"] or "Untitled").strip()
+            title = title if len(title) <= 80 else title[:77].rstrip() + "..."
+            pace = f"about {r['heat']:.0f} times its usual pace" if r["heat"] >= 2 else "a bit faster than usual"
+            lines.append(f"{i}. {title}")
+            lines.append(f"   on {SOURCE_NAMES.get(r['source'], r['source'])}, {pace}")
+        lines.append("")
+    else:
+        lines += ["A quiet day: nothing climbed much.", ""]
+    extra = [f"{d['trends']} new trend{'s' if d['trends'] != 1 else ''}"]
+    if d["alerts"]:
+        extra.append(f"{d['alerts']} alert{'s' if d['alerts'] != 1 else ''} sent")
+    lines.append(f"Also today: {', '.join(extra)}.")
+    if d["broken"]:
+        names = ", ".join(SOURCE_NAMES.get(b["source"], b["source"]) for b in d["broken"])
+        lines.append(f"Heads up: {names} had trouble collecting.")
+    if page:
+        lines += ["", f"The full rundown is here: {page}"]
+    lines += ["", "Sonar"]
+    subject = f"What's climbing, {when.strftime('%A %-d %B')}"
+    return subject, "\n".join(lines)
+
+
 def run(conn, node: dict, now: int | None = None, send=send_ntfy, email=send_email) -> int:
     now = now or int(time.time())
     p = {**DEFAULTS, **node.get("params", {})}
@@ -102,6 +139,7 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy, email=send_ema
         lines.append(f"Saved on the server: {out}")
     send(f"Sonar digest {day}", "\n".join(lines), click=page, tags=["newspaper"])
     if p["email"] and email_configured():
-        email(f"Sonar digest {day}", html, "\n".join(lines))
+        subject, text = email_text(d, now, node.get("tz", "UTC"), page)
+        email(subject, None, text)
     log.info("digest %s: %d sources, %d new entries", day, len(d["top"]), len(d["new"]))
     return d["scored"]
