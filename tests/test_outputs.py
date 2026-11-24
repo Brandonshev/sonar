@@ -13,8 +13,8 @@ NOW = 1_800_000_000
 P = {**ntfy_alert.DEFAULTS}
 
 
-def cand(i, score, heat=10, key=None):
-    return {"item_id": i, "score": score, "heat": heat, "entity_key": key or f"k{i}"}
+def cand(i, score, heat=10, key=None, source="github"):
+    return {"item_id": i, "score": score, "heat": heat, "entity_key": key or f"k{i}", "source": source}
 
 
 # --- pick(): pure decision logic ---
@@ -33,11 +33,26 @@ def test_cooldown_blocks_repeat_within_24h():
 
 
 def test_hourly_cap_and_best_first():
-    cands = [cand(i, score=i) for i in range(1, 11)]
+    cands = [cand(i, score=i, heat=10 + i) for i in range(1, 11)]
     picked = ntfy_alert.pick(cands, {}, 0, NOW, P)
     assert [c["item_id"] for c in picked] == [10, 9, 8, 7, 6]
     assert len(ntfy_alert.pick(cands, {}, 3, NOW, P)) == 2
     assert ntfy_alert.pick(cands, {}, 5, NOW, P) == []
+
+
+def test_source_daily_cap_lets_the_best_through():
+    p = {**P, "source_caps_per_day": {"hackernews": 3}}
+    hn = [cand(i, score=60, heat=h, source="hackernews") for i, h in enumerate([6, 40, 9, 25, 7], start=1)]
+    other = [cand(9, score=50, heat=5.5, source="youtube")]
+    picked = ntfy_alert.pick(hn + other, {}, 0, NOW, p, sent_today={"hackernews": 1})
+    assert [c["item_id"] for c in picked] == [2, 4, 9]  # 2 HN left today (best heat first), youtube unaffected
+    assert ntfy_alert.pick(hn, {}, 0, NOW, p, sent_today={"hackernews": 3}) == []
+
+
+def test_ranking_weight_does_not_hide_a_big_spike():
+    # HN's score is ranked down, but its heat is huge: it still goes first
+    picked = ntfy_alert.pick([cand(1, score=55, heat=40, source="hackernews"), cand(2, score=90, heat=6)], {}, 4, NOW, P)
+    assert [c["item_id"] for c in picked] == [1]
 
 
 def test_same_entity_on_two_sources_alerts_once():

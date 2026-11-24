@@ -112,7 +112,7 @@ def test_score_command_prints_table(conn, monkeypatch, capsys):
     assert "== github ==" in out and "small/fast" in out
 
 
-def test_source_weight_lowers_heat_and_score(conn):
+def test_source_weight_lowers_score_but_not_heat(conn):
     add(conn, "hackernews", "story", {6: 0, 0: 300})
     add(conn, "hackernews", "other", {6: 0, 0: 100})
     node = {"id": "heat", "params": {**NODE["params"], "source_weights": {"hackernews": 0.5}}}
@@ -121,6 +121,6 @@ def test_source_weight_lowers_heat_and_score(conn):
     conn.execute("DELETE FROM scores")
     score_all(conn, node, now=NOW)
     half = scores(conn)["story"]
-    assert half["heat"] == pytest.approx(full["heat"] * 0.5)
+    assert half["heat"] == pytest.approx(full["heat"])          # alerts still see the real heat
     assert half["score"] == pytest.approx(full["score"] * 0.5, abs=0.1)
-    assert any("weighted x0.5" in r for r in json.loads(half["reasons_json"]))
+    assert any("ranked x0.5" in r for r in json.loads(half["reasons_json"]))

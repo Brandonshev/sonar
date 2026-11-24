@@ -5,6 +5,8 @@ Rules (all in pipeline.json params):
   cooldown_hours         no repeat alert for the same item within this window...
   rejump_score           ...unless its score has risen by at least this much since the last alert
   max_per_hour           never send more than this many alerts in any rolling hour
+  source_caps_per_day    e.g. {"hackernews": 3}: at most this many a day from a high-volume source,
+                         best first, so its good ones still get through without flooding you
   warmup_hours           stay quiet until Sonar has this much history (early scores are guesses)
 The same entity climbing on two sources only alerts once per batch.
 """
@@ -17,15 +19,19 @@ from .notify import public_url, send_ntfy
 
 log = logging.getLogger("sonar.alerts")
 DEFAULTS = {"min_heat": 5, "min_score": 0, "cooldown_hours": 24, "rejump_score": 20,
-            "max_per_hour": 5, "warmup_hours": 24}
+            "max_per_hour": 5, "warmup_hours": 24, "source_caps_per_day": {}}
 
 
-def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int, p: dict) -> list[dict]:
-    """candidates: dicts with item_id, entity_key, heat, score (any order).
-    last_alert: item_id -> (ts, score) of its latest alert. Returns the ones to send, best first."""
+def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int, p: dict,
+         sent_today: dict | None = None) -> list[dict]:
+    """candidates: dicts with item_id, entity_key, source, heat, score (any order).
+    last_alert: item_id -> (ts, score) of its latest alert; sent_today: source -> alerts in the last 24h.
+    Returns the ones to send. Ordered by heat, the real "how much faster than usual", so a source's
+    ranking weight never hides a genuinely big spike."""
     out, entities = [], set()
     budget = p["max_per_hour"] - sent_last_hour
-    for c in sorted(candidates, key=lambda c: -c["score"]):
+    left = {s: cap - (sent_today or {}).get(s, 0) for s, cap in p["source_caps_per_day"].items()}
+    for c in sorted(candidates, key=lambda c: (-c["heat"], -c["score"])):
         if budget <= 0:
             break
         if c["heat"] < p["min_heat"] or c["score"] < p["min_score"]:
@@ -35,6 +41,10 @@ def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int
             continue
         if c["entity_key"] and c["entity_key"] in entities:
             continue
+        if c.get("source") in left:
+            if left[c["source"]] <= 0:
+                continue
+            left[c["source"]] -= 1
         entities.add(c["entity_key"])
         out.append(c)
         budget -= 1
@@ -71,9 +81,12 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
     last_alert = {r["item_id"]: (r["ts"], r["score"]) for r in conn.execute(
         "SELECT item_id, MAX(ts) AS ts, score FROM alerts_sent GROUP BY item_id")}
     sent_hour = conn.execute("SELECT COUNT(*) FROM alerts_sent WHERE ts > ?", (now - 3600,)).fetchone()[0]
+    sent_today = dict(conn.execute(
+        "SELECT i.source, COUNT(*) FROM alerts_sent a JOIN items i ON i.id = a.item_id WHERE a.ts > ? GROUP BY i.source",
+        (now - 86400,)).fetchall())
 
     sent = 0
-    for c in pick(candidates, last_alert, sent_hour, now, p):
+    for c in pick(candidates, last_alert, sent_hour, now, p, sent_today):
         title, body, click, actions = message(c)
         send(title, body, click=click, tags=["fire"], priority=4, actions=actions)
         with conn:  # record each one as it goes, so a failure midway can't cause repeats
