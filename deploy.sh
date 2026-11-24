@@ -36,5 +36,5 @@ install -m 644 "$DIR"/ops/systemd/sonar*.service "$DIR"/ops/systemd/sonar*.timer
 systemctl daemon-reload
 systemctl enable --now -q sonar.timer sonar-housekeeping.timer
 
-echo "Deployed Sonar $(sudo -u "$U" "$DIR/.venv/bin/python" -c 'import sonar; print(sonar.VERSION)')"
+echo "Deployed Sonar $(cd "$DIR" && sudo -u "$U" .venv/bin/python -c 'import sonar; print(sonar.VERSION)')"
 systemctl list-timers 'sonar*' --no-pager | head -4
