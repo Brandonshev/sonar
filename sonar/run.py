@@ -9,6 +9,7 @@ run(conn, node) -> int. A node with no "every" runs when one of its upstream nod
 """
 import argparse
 import importlib
+import json
 import logging
 import sys
 import time
@@ -69,11 +70,30 @@ def run_all_due(conn, data: dict, now: int | None = None, modules: dict | None =
     return ran
 
 
+def top_table(conn, ts: int, per_group: int = 20) -> str:
+    """Plain-text table of the best scores at ts, grouped by source."""
+    rows = conn.execute(
+        """SELECT i.source, i.category, i.title, s.heat, s.score, s.reasons_json FROM scores s
+           JOIN items i ON i.id = s.item_id WHERE s.ts = ? ORDER BY i.source, s.score DESC, s.heat DESC""",
+        (ts,)).fetchall()
+    out, counts = [], {}
+    for r in rows:
+        n = counts[r["source"]] = counts.get(r["source"], 0) + 1
+        if n == 1:
+            out.append(f"\n== {r['source']} ==\n{'score':>5} {'heat':>6}  {'category':<14} {'title':<50} why")
+        if n <= per_group:
+            why = json.loads(r["reasons_json"])[0]
+            out.append(f"{r['score']:>5.0f} {r['heat']:>6.1f}  {(r['category'] or '')[:14]:<14} "
+                       f"{(r['title'] or '')[:50]:<50} {why}")
+    return f"Sonar v{VERSION} top scores" + ("\n".join(out) if out else "\n(nothing scored yet)")
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="sonar.run")
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--source", "--node", dest="node", help="run one node by id")
     g.add_argument("--all-due", action="store_true", help="run every node whose schedule is due")
+    g.add_argument("--score", action="store_true", help="score now and print the top 20 per source")
     p.add_argument("--pipeline", default=pipeline.PIPELINE_PATH)
     args = p.parse_args(argv)
 
@@ -87,6 +107,16 @@ def main(argv=None) -> int:
     log.info("Sonar v%s starting", VERSION)
     conn = db.connect()
 
+    if args.score:
+        node = next((n for n in data["nodes"] if n["type"] == "scorer.heat"), None)
+        if not node:
+            log.error("no scorer.heat node in pipeline.json")
+            return 2
+        now = int(time.time())
+        if not run_node(conn, node, now=now):
+            return 1
+        print(top_table(conn, now))
+        return 0
     if args.all_due:
         ran = run_all_due(conn, data)
         log.info("ran %d node(s): %s", len(ran), ", ".join(sorted(ran)) or "none due")

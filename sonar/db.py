@@ -58,6 +58,19 @@ MIGRATIONS = [
     ALTER TABLE items ADD COLUMN entity_key TEXT;
     CREATE INDEX items_entity_key ON items (entity_key);
     """,
+    # 3: heat scores
+    """
+    CREATE TABLE scores (
+        item_id INTEGER NOT NULL REFERENCES items(id),
+        ts INTEGER NOT NULL,
+        heat REAL NOT NULL,
+        score REAL NOT NULL,
+        reasons_json TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE INDEX scores_item_ts ON scores (item_id, ts);
+    CREATE INDEX scores_ts ON scores (ts);
+    CREATE INDEX snapshots_ts ON snapshots (ts);
+    """,
 ]
 
 ITEM_FIELDS = ("kind", "external_id", "title", "url", "category")
