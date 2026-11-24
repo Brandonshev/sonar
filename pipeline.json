@@ -2,23 +2,15 @@
   "$schema": "./pipeline.schema.json",
   "version": 1,
   "nodes": [
-    { "id": "github", "type": "source.github", "label": "GitHub", "enabled": false, "every": "3h", "params": {} },
-    { "id": "hackernews", "type": "source.hackernews", "label": "Hacker News", "enabled": false, "every": "1h", "params": {} },
-    { "id": "producthunt", "type": "source.producthunt", "label": "Product Hunt", "enabled": false, "every": "3h", "params": {} },
-    { "id": "reddit", "type": "source.reddit", "label": "Reddit", "enabled": false, "every": "1h", "params": {} },
-
-    { "id": "heat", "type": "scorer.heat", "label": "Heat score", "enabled": false,
-      "params": { "baseline_days": 7, "floor": 1, "min_history_days": 8 } },
-    { "id": "spikes", "type": "filter.threshold", "label": "Spike filter", "enabled": false,
-      "params": { "min_heat": 5, "cooldown_hours": 24 } },
-
-    { "id": "ntfy", "type": "output.ntfy", "label": "Instant alert", "enabled": false, "params": {} },
-    { "id": "digest", "type": "output.email_digest", "label": "Daily digest", "enabled": false, "every": "1d", "params": {} },
-    { "id": "dashboard", "type": "output.dashboard", "label": "Dashboard", "enabled": false, "params": {} }
+    {"id": "github", "type": "source.github", "label": "GitHub", "enabled": true, "every": "3h", "params": {"created_within_days": 30, "min_stars": 10, "search_pages": 2, "max_tracked": 300, "reserve_requests": 50}},
+    {"id": "hackernews", "type": "source.hackernews", "label": "Hacker News", "enabled": true, "every": "1h", "params": {"top": 100, "new": 100, "best": 50, "workers": 6}},
+    {"id": "producthunt", "type": "source.producthunt", "label": "Product Hunt", "enabled": true, "every": "2h", "params": {"days": 2, "limit": 50, "resolve_per_run": 20}},
+    {"id": "reddit", "type": "source.reddit", "label": "Reddit", "enabled": true, "every": "1h", "params": {"subreddits": ["technology", "programming", "startups", "artificial", "SideProject", "InternetIsBeautiful", "TikTokCringe", "NewTubers", "Entrepreneur", "stocks"], "listings": ["rising", "hot"], "limit": 50}},
+    {"id": "heat", "type": "scorer.heat", "label": "Heat score", "enabled": false, "params": {"baseline_days": 7, "floor": 1, "min_history_days": 8}},
+    {"id": "spikes", "type": "filter.threshold", "label": "Spike filter", "enabled": false, "params": {"min_heat": 5, "cooldown_hours": 24}},
+    {"id": "ntfy", "type": "output.ntfy", "label": "Instant alert", "enabled": false, "params": {}},
+    {"id": "digest", "type": "output.email_digest", "label": "Daily digest", "enabled": false, "every": "1d", "params": {}},
+    {"id": "dashboard", "type": "output.dashboard", "label": "Dashboard", "enabled": false, "params": {}}
   ],
-  "edges": [
-    ["github", "heat"], ["hackernews", "heat"], ["producthunt", "heat"], ["reddit", "heat"],
-    ["heat", "spikes"], ["spikes", "ntfy"],
-    ["heat", "digest"], ["heat", "dashboard"]
-  ]
+  "edges": [["github", "heat"], ["hackernews", "heat"], ["producthunt", "heat"], ["reddit", "heat"], ["heat", "spikes"], ["spikes", "ntfy"], ["heat", "digest"], ["heat", "dashboard"]]
 }

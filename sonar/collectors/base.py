@@ -25,13 +25,23 @@ class Collector:
     def fetch(self) -> list[tuple[dict, dict]]:
         raise NotImplementedError
 
-    def get_json(self, url: str, headers: dict | None = None):
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
+    def request(self, url: str, headers: dict | None = None, data: bytes | dict | None = None):
+        """GET (or POST when data is given). Returns (parsed JSON, response headers).
+        All HTTP goes through here so tests can swap it for recorded responses."""
+        headers = {"User-Agent": USER_AGENT, **(headers or {})}
+        if isinstance(data, dict):
+            data = json.dumps(data).encode()
+            headers.setdefault("Content-Type", "application/json")
+        req = urllib.request.Request(url, data=data, headers=headers)
         with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            return json.load(r)
+            return json.load(r), r.headers
+
+    def get_json(self, url: str, headers: dict | None = None):
+        return self.request(url, headers)[0]
 
     def run(self, conn) -> int:
         """Fetch, then store all items and snapshots in one transaction. Returns item count."""
+        self.conn = conn  # lets fetch() look up already-tracked items
         results = self.fetch()
         now = int(time.time())
         with conn:

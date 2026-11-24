@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from . import ROOT
+from .entities import entity_key
 
 MIGRATIONS = [
     # 1: initial schema
@@ -52,6 +53,11 @@ MIGRATIONS = [
     );
     CREATE INDEX alerts_sent_item_ts ON alerts_sent (item_id, ts);
     """,
+    # 2: cross-source entity key (see entities.py)
+    """
+    ALTER TABLE items ADD COLUMN entity_key TEXT;
+    CREATE INDEX items_entity_key ON items (entity_key);
+    """,
 ]
 
 ITEM_FIELDS = ("kind", "external_id", "title", "url", "category")
@@ -82,14 +88,16 @@ def upsert_item(conn: sqlite3.Connection, source: str, item: dict, now: int | No
     if not item.get("kind") or not item.get("external_id"):
         raise ValueError(f"item needs kind and external_id: {item!r}")
     now = now or int(time.time())
+    key = item.get("entity_key") or entity_key(item.get("url"))
     row = conn.execute(
-        """INSERT INTO items (source, kind, external_id, title, url, category, first_seen, meta_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO items (source, kind, external_id, title, url, category, first_seen, meta_json, entity_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (source, external_id) DO UPDATE SET
              kind = excluded.kind, title = excluded.title, url = excluded.url,
-             category = excluded.category, meta_json = excluded.meta_json
+             category = excluded.category, meta_json = excluded.meta_json,
+             entity_key = excluded.entity_key
            RETURNING id""",
-        (source, *(item.get(f) for f in ITEM_FIELDS), now, json.dumps(item.get("meta") or {})),
+        (source, *(item.get(f) for f in ITEM_FIELDS), now, json.dumps(item.get("meta") or {}), key),
     ).fetchone()
     return row[0]
 

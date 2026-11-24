@@ -4,7 +4,7 @@ A trend radar that spots fast-climbing things early: repos, products, posts and 
 
 **heat = (growth in the last 24h) / max(normal daily growth over the 7 days before, floor)**. A heat of 5 means something is growing 5x faster than usual.
 
-Status: v0.1.0, scaffold only (no collectors yet).
+Status: v0.2.0. Collectors for GitHub, Hacker News, Product Hunt and Reddit. No scoring yet.
 
 ## How it fits together
 

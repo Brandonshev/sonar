@@ -1,0 +1,76 @@
+{
+ "kind": "Listing",
+ "data": {
+  "after": null,
+  "children": [
+   {
+    "kind": "t3",
+    "data": {
+     "name": "t3_sticky",
+     "title": "Weekly thread",
+     "permalink": "/r/programming/comments/sticky/x/",
+     "url": "https://www.reddit.com/r/programming/comments/sticky/x/",
+     "url_overridden_by_dest": null,
+     "subreddit": "programming",
+     "created_utc": 1795000000.0,
+     "over_18": false,
+     "score": 5,
+     "num_comments": 2,
+     "stickied": true,
+     "is_self": true
+    }
+   },
+   {
+    "kind": "t3",
+    "data": {
+     "name": "t3_aaa111",
+     "title": "Zed's GPUI is now its own repo",
+     "permalink": "/r/programming/comments/aaa111/x/",
+     "url": "https://github.com/zed-industries/gpui",
+     "url_overridden_by_dest": "https://github.com/zed-industries/gpui",
+     "subreddit": "programming",
+     "created_utc": 1795000000.0,
+     "over_18": false,
+     "score": 812,
+     "num_comments": 140,
+     "stickied": false,
+     "is_self": false
+    }
+   },
+   {
+    "kind": "t3",
+    "data": {
+     "name": "t3_bbb222",
+     "title": "Ladybird browser alpha",
+     "permalink": "/r/programming/comments/bbb222/x/",
+     "url": "https://ladybird.org/posts/alpha/?utm_source=reddit",
+     "url_overridden_by_dest": "https://ladybird.org/posts/alpha/?utm_source=reddit",
+     "subreddit": "programming",
+     "created_utc": 1795000000.0,
+     "over_18": false,
+     "score": 530,
+     "num_comments": 201,
+     "stickied": false,
+     "is_self": false
+    }
+   },
+   {
+    "kind": "t3",
+    "data": {
+     "name": "t3_ccc333",
+     "title": "What do you use for side projects?",
+     "permalink": "/r/programming/comments/ccc333/x/",
+     "url": "https://www.reddit.com/r/programming/comments/ccc333/x/",
+     "url_overridden_by_dest": null,
+     "subreddit": "programming",
+     "created_utc": 1795000000.0,
+     "over_18": false,
+     "score": 44,
+     "num_comments": 61,
+     "stickied": false,
+     "is_self": true
+    }
+   }
+  ]
+ }
+}

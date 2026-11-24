@@ -1,0 +1,58 @@
+{
+ "ids": [
+  50619103,
+  50614249,
+  50620349,
+  90000001,
+  90000002
+ ],
+ "items": {
+  "50619103": {
+   "by": "EvilGoose",
+   "descendants": 93,
+   "id": 50619103,
+   "score": 241,
+   "time": 1795467174,
+   "title": "GPUI is getting its own repository",
+   "type": "story",
+   "url": "https://github.com/zed-industries/gpui"
+  },
+  "50614249": {
+   "by": "janvdberg",
+   "descendants": 418,
+   "id": 50614249,
+   "score": 1826,
+   "time": 1795450392,
+   "title": "Ladybird is now in alpha",
+   "type": "story",
+   "url": "https://ladybird.org/posts/alpha/"
+  },
+  "50620349": {
+   "by": "shaunpud",
+   "descendants": 213,
+   "id": 50620349,
+   "score": 421,
+   "time": 1795473149,
+   "title": "Stalwart is now a drop-in replacement for Microsoft Exchange",
+   "type": "story",
+   "url": "https://stalw.art/blog/microsoft-exchange-replacement/"
+  },
+  "90000001": {
+   "id": 90000001,
+   "type": "story",
+   "by": "example",
+   "time": 1795000000,
+   "title": "Show HN: A tiny trend radar",
+   "text": "Code is at &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;Example&#x2F;Radar&quot;&gt;https:&#x2F;&#x2F;github.com&#x2F;Example&#x2F;Radar&lt;&#x2F;a&gt;",
+   "score": 12,
+   "descendants": 3
+  },
+  "90000002": {
+   "id": 90000002,
+   "type": "job",
+   "title": "Hiring",
+   "score": 1,
+   "time": 1795000000
+  }
+ }
+}

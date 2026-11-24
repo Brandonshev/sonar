@@ -1,0 +1,51 @@
+{
+ "data": {
+  "posts": {
+   "edges": [
+    {
+     "node": {
+      "id": "1010",
+      "name": "Radarly",
+      "tagline": "Spot trends early",
+      "slug": "radarly",
+      "url": "https://www.producthunt.com/posts/radarly",
+      "website": "https://www.producthunt.com/r/ABC123?utm_campaign=producthunt-api",
+      "votesCount": 321,
+      "commentsCount": 45,
+      "createdAt": "2026-11-24T08:01:00Z",
+      "topics": {
+       "edges": [
+        {
+         "node": {
+          "name": "Productivity"
+         }
+        },
+        {
+         "node": {
+          "name": "AI"
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "node": {
+      "id": "1011",
+      "name": "Quietdesk",
+      "tagline": "",
+      "slug": "quietdesk",
+      "url": "https://www.producthunt.com/posts/quietdesk",
+      "website": "https://www.producthunt.com/r/DEF456",
+      "votesCount": 88,
+      "commentsCount": 4,
+      "createdAt": "2026-11-23T08:01:00Z",
+      "topics": {
+       "edges": []
+      }
+     }
+    }
+   ]
+  }
+ }
+}
