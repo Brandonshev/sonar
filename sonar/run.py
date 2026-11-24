@@ -133,11 +133,14 @@ def main(argv=None) -> int:
         log.error("refusing to run: %s", e)
         return 2
     log.info("Sonar v%s starting", VERSION)
+    from .outputs import notify
+    alerts = next((n for n in data["nodes"] if n["type"] == "output.ntfy_alert"), {})
+    notify.configure_quiet(alerts.get("params", {}).get("quiet_hours"))
     if args.test_alert:
         from .outputs.notify import send_ntfy
         try:
             send_ntfy("Sonar test alert", f"If you can read this, Sonar v{VERSION} alerts work.",
-                      tags=["satellite"])
+                      tags=["satellite"], urgent=True)  # you asked for it: never held for quiet hours
         except Exception as e:
             print(f"Test alert failed: {e}")
             return 1

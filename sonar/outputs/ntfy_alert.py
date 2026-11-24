@@ -7,6 +7,9 @@ Rules (all in pipeline.json params):
   max_per_hour           never send more than this many alerts in any rolling hour
   source_caps_per_day    e.g. {"hackernews": 3}: at most this many a day from a high-volume source,
                          best first, so its good ones still get through without flooding you
+  quiet_hours            {"start": "22:00", "end": "09:00", "tz": ...}: overnight only a life-changing spike
+  quiet_override         ...gets through: {"min_heat": 30, "min_sources": 2}. Everything else waits, and
+                         whatever is still climbing at the end of quiet hours is sent then.
   warmup_hours           stay quiet until Sonar has this much history (early scores are guesses)
 The same entity climbing on two sources only alerts once per batch.
 """
@@ -15,11 +18,12 @@ import logging
 import time
 
 from .. import db
-from .notify import public_url, send_ntfy
+from .notify import public_url, quiet_until, send_ntfy
 
 log = logging.getLogger("sonar.alerts")
 DEFAULTS = {"min_heat": 5, "min_score": 0, "cooldown_hours": 24, "rejump_score": 20,
-            "max_per_hour": 5, "warmup_hours": 24, "source_caps_per_day": {}}
+            "max_per_hour": 5, "warmup_hours": 24, "source_caps_per_day": {},
+            "quiet_hours": None, "quiet_override": {"min_heat": 30, "min_sources": 2}}
 
 
 def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int, p: dict,
@@ -51,6 +55,18 @@ def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int
     return out
 
 
+def sources_climbing(conn, batch: int, c: dict) -> int:
+    """How many sources the same thing (entity or name key) is climbing on (heat >= 2) in this batch."""
+    keys = [k for k in (c.get("entity_key"), c.get("alias_key")) if k]
+    if not keys:
+        return 1
+    q = ",".join("?" * len(keys))
+    n = conn.execute(f"""SELECT COUNT(DISTINCT i.source) FROM scores s JOIN items i ON i.id = s.item_id
+                         WHERE s.ts = ? AND s.heat >= 2 AND (i.entity_key IN ({q}) OR i.alias_key IN ({q}))""",
+                     (batch, *keys, *keys)).fetchone()[0]
+    return max(n, 1)
+
+
 def message(c: dict) -> tuple[str, str, str | None, list]:
     """(title, body, click url, actions) for one alert."""
     reasons = json.loads(c["reasons_json"])
@@ -75,7 +91,7 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
     if latest is None:
         return 0
     candidates = [dict(r) for r in conn.execute(
-        """SELECT s.item_id, s.heat, s.score, s.reasons_json, i.title, i.url, i.source, i.category, i.entity_key
+        """SELECT s.item_id, s.heat, s.score, s.reasons_json, i.title, i.url, i.source, i.category, i.entity_key, i.alias_key
            FROM scores s JOIN items i ON i.id = s.item_id WHERE s.ts = ? AND s.heat >= ?""",
         (latest, p["min_heat"]))]
     last_alert = {r["item_id"]: (r["ts"], r["score"]) for r in conn.execute(
@@ -86,9 +102,18 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
         (now - 86400,)).fetchall())
 
     sent = 0
+    quiet = quiet_until(now, p["quiet_hours"]) if p["quiet_hours"] else None
+    if quiet:  # overnight: only genuinely life-changing spikes
+        o = p["quiet_override"]
+        candidates = [c for c in candidates if c["heat"] >= o["min_heat"]
+                      and sources_climbing(conn, latest, c) >= o["min_sources"]]
     for c in pick(candidates, last_alert, sent_hour, now, p, sent_today):
         title, body, click, actions = message(c)
-        send(title, body, click=click, tags=["fire"], priority=4, actions=actions)
+        if quiet:
+            send("🚨 " + title.removeprefix("🔥 "), "Big enough to break quiet hours.\n" + body, click=click,
+                 tags=["rotating_light"], priority=5, actions=actions, urgent=True)
+        else:
+            send(title, body, click=click, tags=["fire"], priority=4, actions=actions)
         with conn:  # record each one as it goes, so a failure midway can't cause repeats
             conn.execute("INSERT INTO alerts_sent (item_id, ts, level, score) VALUES (?, ?, 'big', ?)",
                          (c["item_id"], now, c["score"]))

@@ -2,11 +2,41 @@
 import json
 import os
 import smtplib
+import time
 import urllib.request
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
+from zoneinfo import ZoneInfo
 
 from .. import USER_AGENT
+
+
+QUIET: dict | None = None  # {"start": "22:00", "end": "09:00", "tz": "Australia/Sydney"}, set from pipeline.json
+
+
+def configure_quiet(quiet: dict | None) -> None:
+    global QUIET
+    QUIET = quiet
+
+
+def quiet_until(now: float, quiet: dict | None = None) -> int | None:
+    """If `now` is inside quiet hours, the unix time they end; otherwise None."""
+    q = quiet or QUIET
+    if not q:
+        return None
+    tz = ZoneInfo(q.get("tz", "UTC"))
+    local = datetime.fromtimestamp(now, tz)
+    sh, sm = map(int, q["start"].split(":"))
+    eh, em = map(int, q["end"].split(":"))
+    minutes, start, end = local.hour * 60 + local.minute, sh * 60 + sm, eh * 60 + em
+    inside = (start <= minutes or minutes < end) if start > end else (start <= minutes < end)
+    if not inside:
+        return None
+    end_dt = local.replace(hour=eh, minute=em, second=0, microsecond=0)
+    if end_dt <= local:
+        end_dt += timedelta(days=1)
+    return int(end_dt.timestamp())
 
 
 def public_url(path: str) -> str | None:
@@ -16,8 +46,9 @@ def public_url(path: str) -> str | None:
 
 
 def send_ntfy(title: str, message: str, click: str | None = None, tags: list | None = None,
-              priority: int = 3, actions: list | None = None) -> None:
-    """Publish to NTFY_TOPIC on NTFY_SERVER (default ntfy.sh). Raises on failure."""
+              priority: int = 3, actions: list | None = None, urgent: bool = False) -> None:
+    """Publish to NTFY_TOPIC on NTFY_SERVER (default ntfy.sh). Raises on failure.
+    During quiet hours a non-urgent message is held by ntfy and delivered when they end."""
     topic = os.environ.get("NTFY_TOPIC")
     if not topic:
         raise RuntimeError("NTFY_TOPIC is not set in .env")
@@ -30,6 +61,8 @@ def send_ntfy(title: str, message: str, click: str | None = None, tags: list | N
         body["actions"] = actions
     if icon := public_url("icon-192.png"):  # shown next to the notification (ntfy on Android)
         body["icon"] = icon
+    if not urgent and (until := quiet_until(time.time())):
+        body["delay"] = str(until)  # ntfy's scheduled delivery
     headers = {"User-Agent": USER_AGENT, "Content-Type": "application/json"}
     if token := os.environ.get("NTFY_TOKEN"):
         headers["Authorization"] = f"Bearer {token}"

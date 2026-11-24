@@ -81,7 +81,7 @@ invalid file. Nothing is hard-coded, so a workflow-map app can edit the file dir
 ## Outputs
 
 - **Dashboard:** password-protected and built for phones, with dark mode and an installable home-screen icon. Pages: top climbers with 7-day sparklines, tabs (Social, YouTube, Tech products, GitHub, Companies, Other), item pages with history charts and alert history, a digest archive and health.
-- **Instant alerts** (ntfy): heat ≥ 5, biggest spikes first; no repeat for the same item within 24h unless its score jumps another 20; at most 5 an hour; quiet for the first 24h of collecting. High-volume sources get a daily cap (Hacker News: 3 a day), so their best still get through without flooding you. They're also ranked lower on the dashboard (`source_weights`), which affects scores only, never alerts.
+- **Instant alerts** (ntfy): heat ≥ 5, biggest spikes first; no repeat for the same item within 24h unless its score jumps another 20; at most 5 an hour; quiet for the first 24h of collecting. High-volume sources get a daily cap (Hacker News: 3 a day), so their best still get through without flooding you. They're also ranked lower on the dashboard (`source_weights`), which affects scores only, never alerts. **Quiet hours** (10pm–9am Sydney): overnight only a life-changing spike gets through (heat ≥ 30 on 2+ sources, sent urgent). Other alerts wait and go out at 9am if the thing is still climbing, and other ntfy messages are delivered at 9am.
 - **Daily digest** at 7:00 Sydney time: top climbers per source, new entries and broken sources. Saved as a page, sent by ntfy, and by email if SMTP is set.
 - **Lookout feed:** `GET /api/trends`, token-protected and rate-limited, serving `trend.found` events for video trends. See [API.md](API.md).
 

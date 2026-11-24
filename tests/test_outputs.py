@@ -222,3 +222,74 @@ def test_send_email_tls_rules(monkeypatch, host, tls, expect):
     else:
         notify.send_email("s", None, "t")
     assert [e[0] for e in FakeSMTP.log] == expect
+
+
+# --- quiet hours ---
+
+SYD = ZoneInfo("Australia/Sydney")
+QUIET = {"start": "22:00", "end": "09:00", "tz": "Australia/Sydney"}
+
+
+def syd(h, m=0, d=25):
+    return int(datetime(2026, 11, d, h, m, tzinfo=SYD).timestamp())
+
+
+@pytest.mark.parametrize("when,until", [
+    (syd(21, 59), None), (syd(22, 0), syd(9, 0, d=26)), (syd(2, 30), syd(9, 0)), (syd(8, 59), syd(9, 0)), (syd(9, 0), None),
+])
+def test_quiet_until(when, until):
+    from sonar.outputs.notify import quiet_until
+    assert quiet_until(when, QUIET) == until
+
+
+def test_ntfy_holds_non_urgent_messages_overnight(monkeypatch):
+    from sonar.outputs import notify
+    bodies = []
+
+    class R:
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def read(self): return b""
+    monkeypatch.setattr(notify.urllib.request, "urlopen", lambda req, timeout: bodies.append(json.loads(req.data)) or R())
+    monkeypatch.setattr(notify.time, "time", lambda: syd(23))
+    monkeypatch.setenv("NTFY_TOPIC", "t")
+    notify.configure_quiet(QUIET)
+    try:
+        notify.send_ntfy("digest", "x")
+        notify.send_ntfy("huge", "x", urgent=True)
+    finally:
+        notify.configure_quiet(None)
+    assert bodies[0]["delay"] == str(syd(9, 0, d=26)) and "delay" not in bodies[1]
+
+
+def quiet_conn(heat, second_source):
+    c = db.connect(":memory:")
+    item = db.upsert_item(c, "github", {"kind": "repo", "external_id": "a/b", "title": "a/b", "url": "https://github.com/a/b"},
+                          now=syd(1) - 3 * 86400)
+    c.execute("INSERT INTO scores VALUES (?, ?, ?, 99, '[\"r\"]')", (item, syd(1) - 2 * 86400, 0))  # scoring for 2 days
+    c.execute("INSERT INTO scores VALUES (?, ?, ?, 99, '[\"r\"]')", (item, syd(1), heat))
+    if second_source:
+        hn = db.upsert_item(c, "hackernews", {"kind": "story", "external_id": "1", "url": "https://github.com/a/b"})
+        c.execute("INSERT INTO scores VALUES (?, ?, 12, 70, '[]')", (hn, syd(1)))
+    c.commit()
+    return c
+
+
+@pytest.mark.parametrize("heat,second,expect", [(40, True, 1), (40, False, 0), (12, True, 0)])
+def test_overnight_only_life_changing_alerts(heat, second, expect):
+    sent = []
+    node = {"id": "alerts", "params": {"quiet_hours": QUIET}}
+    n = ntfy_alert.run(quiet_conn(heat, second), node, now=syd(1), send=lambda *a, **k: sent.append((a, k)))
+    assert n == expect
+    if expect:
+        (title, body), kw = sent[0]
+        assert title.startswith("🚨") and kw["priority"] == 5 and kw["urgent"] is True
+
+
+def test_held_alert_goes_out_after_quiet_hours():
+    c = quiet_conn(12, True)
+    c.execute("UPDATE scores SET ts = ? WHERE ts = ?", (syd(9, 5), syd(1)))
+    c.commit()
+    sent = []
+    ntfy_alert.run(c, {"id": "alerts", "params": {"quiet_hours": QUIET}}, now=syd(9, 5), send=lambda *a, **k: sent.append(k))
+    assert len(sent) >= 1 and sent[0]["priority"] == 4  # normal alert, normal priority
