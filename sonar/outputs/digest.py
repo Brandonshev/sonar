@@ -140,7 +140,8 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy, email=send_ema
         lines.append(f"Saved on the server: {out}")
     send(f"Sonar digest {day}", "\n".join(lines), click=page, tags=["newspaper"])
     if p["email"] and email_configured():
+        # The full digest page, with the short text version as the plain-text fallback.
         subject, text = email_text(d, now, node.get("tz", "UTC"), page)
-        email(subject, None, text)
+        email(subject, html, text)
     log.info("digest %s: %d sources, %d new entries", day, len(d["top"]), len(d["new"]))
     return d["scored"]

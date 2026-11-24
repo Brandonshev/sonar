@@ -138,7 +138,7 @@ def test_digest_emails_when_configured(conn, tmp_path, monkeypatch):
     digest.run(conn, {"id": "digest", "tz": "Australia/Sydney", "params": {}}, now=NOW, send=lambda *a, **k: None,
                email=lambda *a: mails.append(a))
     subject, html, text = mails[0]
-    assert subject.startswith("What's climbing, ") and html is None
+    assert subject.startswith("What's climbing, ") and "<html" in html and "Rocket" in html  # full digest
     assert text.startswith("Morning,") and "1. Rocket" in text and "Rocket\n   on GitHub, about 12 times its usual pace" in text
     assert text.count("http") == 1 and "https://sonar.example.com/digest/" in text  # one link, to our own site
     assert "github.com/x/Rocket" not in text and "score" not in text.lower()
