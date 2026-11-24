@@ -49,7 +49,7 @@ ssh postline-oracle 'cd /opt/sonar && sudo -u sonar .venv/bin/python -m sonar.ru
 ```
 
 ```bash
-ssh postline-oracle 'tail -n 50 /opt/sonar/logs/sonar.log'
+ssh postline-oracle 'sudo tail -n 50 /opt/sonar/logs/sonar.log'
 ```
 
 ```bash
