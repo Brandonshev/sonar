@@ -1,76 +1,139 @@
-# Sonar
+<p align="center"><img src="design/icon.svg" width="112" alt="Sonar icon: radar rings, a sweep and an orange blip"></p>
 
-A trend radar that spots fast-climbing things early: repos, products, posts and topics across GitHub, Hacker News, Product Hunt, Reddit and more.
+<h1 align="center">Sonar</h1>
 
-**heat = (growth in the last 24h) / max(normal daily growth over the 7 days before, floor)**. A heat of 5 means something is growing 5x faster than usual.
+<p align="center">A trend radar that spots fast-climbing things before everyone else:<br>
+GitHub repos, products, videos, hashtags, searches, articles and companies.</p>
 
-Status: v0.10.0, deployed (see DEPLOY.md). Sources: GitHub, Hacker News, Product Hunt, Reddit (off until approved), YouTube, Google Trends, Wikipedia, TikTok hashtags, Instagram (off until approved) and news, plus a company heat score. Daily digest, instant ntfy alerts and a web dashboard. Collectors for GitHub, Hacker News, Product Hunt and Reddit (off until API access is approved), plus the heat scorer.
+---
 
-## How it fits together
+Sonar checks a dozen sources on a schedule and saves a snapshot of every number it sees (stars,
+views, points, mentions). From that history it works out how much faster than usual each thing is
+growing right now. You get a ranked dashboard, an instant ntfy push when something really takes off,
+a daily digest, and a JSON feed for other programs.
+
+It runs on a free Oracle Cloud VM with 1 GB of RAM, next to other apps: about 30 MB per run, with
+hard CPU and memory caps. Python standard library plus two small dependencies, and $0 to run.
+
+*Attention signals only, not financial advice.*
+
+## The heat score
+
+For each item and metric:
 
 ```
-collectors (one per source) -> SQLite snapshots -> scorer -> filters -> outputs
+v    = value now − value 24 hours ago          (interpolated between snapshots)
+b    = average daily growth over the 7 days before that
+heat = v / max(b, floor)                        5 = growing five times faster than usual
 ```
 
-Everything Sonar runs, and how the parts connect, lives in [`pipeline.json`](pipeline.json), validated by [`pipeline.schema.json`](pipeline.schema.json). Sonar refuses to start if the file is invalid.
+- **New items** (under 48 hours old) have no history yet, so they're compared with the typical
+  growth of other new items from the same source.
+- **Early bonus:** `heat × (1 + 1 / log10(size + 10))`. A 40-star repo jumping to 600 outranks a
+  100k-star repo growing slowly.
+- **Cross-source bonus:** +25% for each other source where the same thing is also climbing. Items
+  are matched by URL, repo, domain, hashtag, or a careful name match.
+- **Score 0–100:** heat on a log scale, normalised per source so stars, points and views are comparable.
 
-- Node types: `source.*`, `scorer.*`, `filter.*`, `output.*`. A node with `every` runs on that schedule. A node without it runs when an upstream node (per `edges`) runs.
-- Every node's health (last run, last success, last error, items found) is kept in the `source_health` table. A broken node never stops the others.
-- Findings go to the `events` table as standard events: `{"type": "trend.found", "source": ..., "item": ..., "heat": ..., "ts": ...}`.
+Every score comes with plain-English reasons, e.g. `stars 56 -> 628 in 24h, 114x its normal rate`.
+This is why Sonar saves snapshots from day one: heat needs history, and most history can't be backfilled.
 
-## Scoring (`scorer.heat`)
+## Sources
 
-For each item and metric (stars, points, votes...):
+| Source | What | How | Notes |
+|---|---|---|---|
+| GitHub | New repos by stars, tracked repos, company orgs | REST API | `GITHUB_TOKEN` recommended |
+| Hacker News | Top, new and best stories | Firebase API | |
+| Product Hunt | Recent launches | GraphQL API | `PRODUCTHUNT_TOKEN` |
+| Reddit | Rising and hot posts in 132 subreddits | OAuth API | Off until Reddit approves API access |
+| YouTube | AU/US/GB charts, topic searches, view re-checks | Data API v3 | Quota tracked, stays under 8,000 of 10,000 units a day |
+| Google Trends | Daily trending searches (AU/US/GB) | Official RSS feed | |
+| Google Trends rising | Rising related queries for seed topics | Unofficial endpoints | Backoff; own health status |
+| Wikipedia | Top articles, company and linked articles | Wikimedia pageviews API | Backfills 10 days |
+| TikTok | Hashtag post and view counts | Public web API | No trending lists or sounds (they need a real browser) |
+| Instagram | Hashtag post counts | Instaloader + throwaway account | Off by default; fragile |
+| News | Company mentions in 10 RSS feeds plus HN and Reddit titles | RSS/Atom | Each article counts once |
 
-- **v** = value now minus value 24h ago, interpolated between snapshots. If Sonar has watched the item for less than 24h, v is estimated from what it has seen and scaled to 24h.
-- **b** = average daily growth over the 7 days before that. Items under 48h old have no baseline yet, so b is the typical 24h growth of new items from the same source.
-- **heat** = v / max(b, floor). The floor per source and metric is in `pipeline.json`, so a zero baseline can never divide by zero.
-- **Early bonus:** heat x (1 + early_weight / log10(size + 10)), so small things count more.
-- **Cross-source bonus:** +25% for each other source where the same entity is climbing (heat >= 2).
-- **Score 0-100:** heat on a log scale, normalised per source so GitHub stars and HN points are comparable. A heat of 20 (configurable) scores 100.
+Fragile sources (TikTok, Instagram) are rate-limited with random jitter and switch themselves off
+after 3 failures in a row. You get one ntfy message and a warning on the dashboard. Turn them back
+on with `python -m sonar.run --enable <id>`.
 
-Each score is saved with plain-English reasons, e.g. `stars 56 -> 628 in 24h, 114x its normal rate`. When an item's heat crosses `trend_min_heat` (5), a `trend.found` event is logged.
+**Companies:** `companies.json` lists 49 companies with careful aliases ("Meta Platforms", not
+"Meta"). `scorer.companies` combines news, HN, Reddit, Wikipedia, Product Hunt launches and GitHub
+org activity into one company heat, with a per-signal breakdown on the Companies tab.
 
-## Alerts and digest
+## pipeline.json
 
-- **Instant alert** (`output.ntfy_alert`, runs after each scoring): an ntfy push when an item's heat is at least `min_heat` (5) and its score at least `min_score`. The same item is not alerted again within `cooldown_hours` (24) unless its score has risen by `rejump_score` (20). There are never more than `max_per_hour` (5) alerts an hour, and none during the first `warmup_hours` (24) of collecting.
-- **Daily digest** (`output.digest`, `"at": "07:00"`, `"tz": "Australia/Sydney"`): top climbers per source, new entries, broken sources and the version, saved as `data/digests/YYYY-MM-DD.html`. It's sent as a short ntfy message, and also emailed if `SMTP_*` and `DIGEST_TO` are set in `.env`.
-- `python -m sonar.run --test-alert` sends a dummy ntfy message.
+Everything Sonar runs, and what connects to what, lives in [`pipeline.json`](pipeline.json) and is
+validated against [`pipeline.schema.json`](pipeline.schema.json). Sonar refuses to start on an
+invalid file. Nothing is hard-coded, so a workflow-map app can edit the file directly.
 
-All thresholds, times and caps are in `pipeline.json`.
+```json
+{"id": "tiktok", "type": "source.tiktok", "enabled": true, "every": "4h",
+ "params": {"hashtags": ["grwm", "booktok"], "min_interval_seconds": 4, "jitter_seconds": 3, "max_failures": 3}}
+```
 
-## Companies
+- **Node types:** `source.*`, `scorer.*`, `filter.*`, `output.*`. The code for `source.github` is `sonar/collectors/github.py`.
+- **Schedules:** `"every": "3h"`, or `"at": "07:00"` with `"tz": "Australia/Sydney"`. A node with neither runs whenever an upstream node (in `edges`) runs.
+- **Health:** every node's health (last run, last success, last error, items, failures in a row) is shown on the dashboard and by `python -m sonar.health`.
+- **Events:** findings are standard events (`trend.found`, `alert.sent`, `source.disabled`, ...) in the `events` table, ready for a future central hub.
 
-`companies.json` lists the companies Sonar follows (name, careful aliases, domain, GitHub org, Wikipedia article). `source.news` counts how many articles and posts name each one: Google News and tech/business RSS feeds go into `mentions`, Hacker News titles into `hn_mentions` and Reddit titles into `reddit_mentions`. Each article counts once. `scorer.companies` then rolls up news, HN, Reddit, Wikipedia views, Product Hunt launches and GitHub org activity into one company heat: the strongest signal, plus 25% for each other signal also climbing. The Companies tab shows the breakdown. Attention signals only, not financial advice.
+## Outputs
 
-## Lookout feed
+- **Dashboard:** password-protected and built for phones, with dark mode and an installable home-screen icon. Pages: top climbers with 7-day sparklines, tabs (Social, YouTube, Tech products, GitHub, Companies, Other), item pages with history charts and alert history, a digest archive and health.
+- **Instant alerts** (ntfy): heat ≥ 5; no repeat for the same item within 24h unless its score jumps another 20; at most 5 an hour; quiet for the first 24h of collecting.
+- **Daily digest** at 7:00 Sydney time: top climbers per source, new entries and broken sources. Saved as a page, sent by ntfy, and by email if SMTP is set.
+- **Lookout feed:** `GET /api/trends`, token-protected and rate-limited, serving `trend.found` events for video trends. See [API.md](API.md).
 
-`output.lookout_feed` publishes video trends (`social.video`: TikTok hashtags and YouTube videos) as standard `trend.found` events at `GET /api/trends`, for Lookout to read. It's token-protected and rate-limited, and every read is logged. The schema and examples are in [API.md](API.md).
-
-## Fragile sources (TikTok, Instagram)
-
-- **TikTok** (no library): post and view counts for watched hashtags, from TikTok's public web API. It **can't** see TikTok's trending lists or sound usage: those need a real browser, which is too heavy for this server. The watchlist is the seeds in `pipeline.json` plus hashtags that keep appearing in YouTube titles. Climbing TikTok tags are pushed (capped) to the Instagram and YouTube watchlists, and the same tag links across platforms (`tag:<name>`), so cross-platform climbs get the bonus. Category `social.video`.
-- **Instagram** (Instaloader, off until approved): hashtag post counts using a throwaway account's saved session.
-- Both break the platforms' terms for automated access and can be blocked at any time. They run with strict pacing plus random jitter (`min_interval_seconds`, `jitter_seconds`), and are switched off automatically after `max_failures` (3) failures in a row. When that happens you get one ntfy message and a warning on every dashboard page. Turn one back on with `python -m sonar.run --enable tiktok`.
-
-## Run
+## Run it
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env
-.venv/bin/python -m sonar.run --source github   # one node
-.venv/bin/python -m sonar.run --all-due         # everything that's due (put this on a timer)
-.venv/bin/python -m sonar.run --score           # score now, print the top 20 per source
+cp .env.example .env                                  # fill in the tokens you have
+.venv/bin/python -m sonar.run --source hackernews     # one node
+.venv/bin/python -m sonar.run --all-due               # everything that's due (what the timer runs)
+.venv/bin/python -m sonar.run --score                 # score now, print the top 20 per source
+.venv/bin/python -m sonar.health                      # status of every node
+.venv/bin/python -m sonar.web --set-password          # dashboard password (stores a scrypt hash only)
+.venv/bin/python -m sonar.web                         # dashboard on 127.0.0.1:8390
+.venv/bin/python -m sonar.run --test-alert            # send a test ntfy message
 ```
 
-## Tests
+Tests (no network, about 7 s): `.venv/bin/pip install pytest && .venv/bin/python -m pytest`
 
-```bash
-.venv/bin/pip install pytest && .venv/bin/python -m pytest
+**Deploying:** [DEPLOY.md](DEPLOY.md) covers it: one command (`ssh <server> 'sudo bash -s' < deploy.sh`), systemd timers with CPU and memory caps, HTTPS through a Cloudflare Tunnel, logs and housekeeping.
+
+## Layout
+
+```
+sonar/collectors/   one file per source (base.py: storage, pacing, retries)
+sonar/scoring/      heat.py (items), companies.py (company roll-up)
+sonar/outputs/      ntfy_alert, digest, lookout_feed, dashboard
+sonar/web.py        dashboard + /api/trends (standard library HTTP server, no JavaScript)
+sonar/static/       icons and web manifest
+design/icon.svg     icon master
+ops/                systemd units, Oracle ARM server helper
 ```
 
-## Ops
+## Version history
 
-`ops/grab-a1.sh` keeps requesting an Oracle Always Free ARM A1 server until one is free. See `ops/HANDOFF-grab-a1.md`.
+| Version | What changed |
+|---|---|
+| **1.0.0** | Radar app icon (favicon, home-screen and PWA icons, ntfy icon), web manifest, audit fixes: alert warm-up can't be fooled by backfilled history, scores kept 14 days |
+| 0.10.0 | Lookout feed: `output.lookout_feed` and a token-protected, rate-limited `GET /api/trends`; API.md |
+| 0.9.0 | News mentions per company; company heat roll-up and Companies tab |
+| 0.8.0 | TikTok hashtags; Instagram via Instaloader (off by default); pacing with jitter, auto-disable after 3 failures, cross-platform hashtag watchlists |
+| 0.7.0 | YouTube (quota-tracked), Google Trends daily and rising, Wikipedia pageviews; careful name linking |
+| 0.6.0 | Password-protected dashboard behind HTTPS (Cloudflare Tunnel) |
+| 0.5.0 | Instant ntfy spike alerts with cooldown and hourly cap; daily digest at 7:00 Sydney |
+| 0.4.0 | Deployed to Oracle Cloud: systemd timers with resource caps, health command, housekeeping, log rotation |
+| 0.3.0 | Heat scorer with new-item baseline, early and cross-source bonuses, plain-English reasons |
+| 0.2.0 | GitHub, Hacker News, Product Hunt and Reddit collectors; URL entity keys |
+| 0.1.0 | Scaffold: SQLite schema with migrations, validated `pipeline.json`, node runner |
 
-Investing-related signals are information only, not financial advice.
+## Limits, honestly
+
+- TikTok trending lists and sound counts need a real headless browser (300–500 MB of RAM), which doesn't fit this server. Sonar watches seed and discovered hashtags instead.
+- Reddit's API now needs Reddit's approval, and Instagram bans fresh automated accounts quickly. Both sources are written but off.
+- Scraped sources (TikTok, Google Trends rising, Instagram) break the platforms' terms for automated access and can stop working at any time. Each one fails on its own without affecting the rest.
+- A heat of 5 on day one means less than a heat of 5 after a week, because baselines need history.

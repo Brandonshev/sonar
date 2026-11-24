@@ -182,10 +182,11 @@ footer{max-width:920px;margin:24px auto 40px;padding:0 16px;color:var(--muted);f
 .hide-sm{display:none}}
 """
 
-LOGO = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
-        '<circle cx="12" cy="12" r="9.5" opacity=".35"/><circle cx="12" cy="12" r="5.5" opacity=".6"/>'
-        '<path d="M12 12 L19 6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>'
-        '<circle cx="16.5" cy="8.2" r="1.3" fill="currentColor" stroke="none"/></svg>')
+LOGO = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">'
+        '<circle cx="12" cy="12" r="9.3" stroke-width="1.5" opacity=".35"/><circle cx="12" cy="12" r="6.4" stroke-width="1.7" opacity=".6"/>'
+        '<circle cx="12" cy="12" r="3.5" stroke-width="1.9"/><path d="M12 12 L16.9 4.2" stroke-width="1.8" stroke-linecap="round"/>'
+        '<circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>'
+        '<circle cx="16.9" cy="7.9" r="1.6" fill="#ff7d47" stroke="none"/></svg>')
 
 
 def layout(title: str, body: str, tab: str = "", tabs=(), meta: str = "", nav: bool = True) -> str:
@@ -196,7 +197,10 @@ def layout(title: str, body: str, tab: str = "", tabs=(), meta: str = "", nav: b
     return (f'<!doctype html><html lang="en-AU"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
             f'<meta name="color-scheme" content="light dark"><title>{escape(title)} · Sonar</title>'
-            f'<link rel="icon" href="/favicon.svg"><style>{CSS}</style></head><body>{head}'
+            f'<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/icon.svg" type="image/svg+xml">'
+            f'<link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest">'
+            f'<meta name="theme-color" content="#090f12"><meta name="apple-mobile-web-app-title" content="Sonar">'
+            f'<style>{CSS}</style></head><body>{head}'
             f'<main>{body}</main><footer>Sonar v{VERSION} · Attention signals only, not financial advice.</footer></body></html>')
 
 
@@ -399,6 +403,13 @@ class RateLimit:
             return True
 
 
+STATIC_DIR = Path(__file__).parent / "static"
+STATIC = {"favicon.ico": "image/x-icon", "icon.svg": "image/svg+xml", "apple-touch-icon.png": "image/png",
+          "icon-16.png": "image/png", "icon-32.png": "image/png", "icon-48.png": "image/png",
+          "icon-192.png": "image/png", "icon-512.png": "image/png", "icon-maskable-512.png": "image/png",
+          "manifest.webmanifest": "application/manifest+json"}
+
+
 class Handler(BaseHTTPRequestHandler):
     site: Site
     throttle = Throttle()
@@ -414,17 +425,17 @@ class Handler(BaseHTTPRequestHandler):
         return self.headers.get("CF-Connecting-IP") or self.headers.get("X-Forwarded-For", "").split(",")[0].strip() \
             or self.client_address[0]
 
-    def send(self, code: int, body: str = "", ctype="text/html; charset=utf-8", headers=None):
-        data = body.encode()
+    def send(self, code: int, body: str | bytes = "", ctype="text/html; charset=utf-8", headers=None, cache="no-store"):
+        data = body if isinstance(body, bytes) else body.encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy",
-                         "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'")
+                         "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; manifest-src 'self'; form-action 'self'")
         if os.environ.get("SONAR_PUBLIC_URL", "").startswith("https://"):
             self.send_header("Strict-Transport-Security", "max-age=31536000")
         for k, v in (headers or {}).items():
@@ -463,8 +474,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         now = int(time.time())
         path = urlsplit(self.path).path
-        if path == "/favicon.svg":
-            return self.send(200, LOGO.replace("currentColor", "#3ee0a1"), "image/svg+xml")
+        if path.lstrip("/") in STATIC:  # icons and the web manifest: public, cacheable
+            name = path.lstrip("/")
+            return self.send(200, (STATIC_DIR / name).read_bytes(), STATIC[name], cache="public, max-age=86400")
         if path == "/login":
             return self.send(200, self.site.page_login())
         if path == "/api/trends":

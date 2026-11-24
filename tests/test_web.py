@@ -134,3 +134,19 @@ def test_plain_http_via_proxy_goes_to_https(server, monkeypatch):
 def test_no_password_set_fails_closed(server, monkeypatch):
     monkeypatch.delenv("SONAR_DASH_PASSWORD_HASH")
     assert login(server)[0] == 503
+
+
+def test_icons_and_manifest_are_public_and_complete(server):
+    from pathlib import Path
+    static = Path(web.__file__).parent / "static"
+    manifest = json.loads((static / "manifest.webmanifest").read_text())
+    for icon in manifest["icons"]:
+        assert (static / icon["src"].lstrip("/")).is_file(), icon["src"]
+    for path, ctype in (("/favicon.ico", "image/x-icon"), ("/apple-touch-icon.png", "image/png"),
+                        ("/icon-512.png", "image/png"), ("/manifest.webmanifest", "application/manifest+json")):
+        r = opener.open(server + path)  # no cookie: still served
+        assert r.status == 200 and r.headers["Content-Type"] == ctype and "max-age" in r.headers["Cache-Control"], path
+        assert r.read()
+    assert get(server + "/static/../web.py")[0] in (303, 404)  # only the listed files are served
+    _, page, _ = get(server + "/login")
+    assert 'rel="manifest"' in page and 'rel="apple-touch-icon"' in page

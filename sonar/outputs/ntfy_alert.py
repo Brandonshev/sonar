@@ -56,7 +56,8 @@ def message(c: dict) -> tuple[str, str, str | None, list]:
 def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
     now = now or int(time.time())
     p = {**DEFAULTS, **node.get("params", {})}
-    first = conn.execute("SELECT MIN(ts) FROM snapshots").fetchone()[0]
+    # Sonar's age = its first scoring pass. Not the oldest snapshot: sources like Wikipedia backfill history.
+    first = conn.execute("SELECT MIN(ts) FROM scores").fetchone()[0]
     if first is None or now - first < p["warmup_hours"] * 3600:
         log.info("warming up: no alerts until Sonar has %dh of history", p["warmup_hours"])
         return 0

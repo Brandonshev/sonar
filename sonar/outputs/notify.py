@@ -27,6 +27,8 @@ def send_ntfy(title: str, message: str, click: str | None = None, tags: list | N
         body["click"] = click
     if actions:
         body["actions"] = actions
+    if icon := public_url("icon-192.png"):  # shown next to the notification (ntfy on Android)
+        body["icon"] = icon
     headers = {"User-Agent": USER_AGENT, "Content-Type": "application/json"}
     if token := os.environ.get("NTFY_TOKEN"):
         headers["Authorization"] = f"Bearer {token}"

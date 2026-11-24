@@ -43,3 +43,12 @@ def test_health_report_statuses():
     assert "FAILING" in line["producthunt"] and "no token" in line["producthunt"]
     assert "STALE" in line["hackernews"]
     assert "WAITING" in line["heat"]
+
+
+def test_prune_keeps_two_weeks_of_scores():
+    conn = db.connect(":memory:")
+    item = db.upsert_item(conn, "github", {"kind": "repo", "external_id": "a/b"})
+    for days in (20, 13, 1):
+        conn.execute("INSERT INTO scores VALUES (?, ?, 1, 1, '[]')", (item, NOW - days * DAY))
+    housekeeping.prune(conn, NOW)
+    assert [r[0] for r in conn.execute("SELECT (? - ts) / 86400 FROM scores ORDER BY ts", (NOW,))] == [13, 1]

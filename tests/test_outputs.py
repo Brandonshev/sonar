@@ -57,8 +57,20 @@ def conn():
         db.add_snapshots(c, item, {"stars": 1}, now=NOW - 2 * 86400)
         c.execute("INSERT INTO scores VALUES (?, ?, ?, ?, ?)",
                   (item, NOW, heat, score, json.dumps([f"stars 10 -> 500 in 24h, {heat}x its normal rate"])))
+    c.execute("INSERT INTO scores VALUES (1, ?, 0, 0, '[]')", (NOW - 2 * 86400,))  # Sonar has been scoring for 2 days
     c.commit()
     return c
+
+
+def test_warmup_counts_from_first_score_not_backfilled_snapshots():
+    c = db.connect(":memory:")
+    item = db.upsert_item(c, "wikipedia", {"kind": "article", "external_id": "X"}, now=NOW - 10 * 86400)
+    db.add_snapshots(c, item, {"views": 5}, now=NOW - 10 * 86400)  # backfilled 10 days
+    c.execute("INSERT INTO scores VALUES (?, ?, 50, 99, '[\"r\"]')", (item, NOW - 3600))  # but scoring began 1h ago
+    c.commit()
+    sent = []
+    assert ntfy_alert.run(c, {"id": "alerts", "params": {}}, now=NOW, send=lambda *a, **k: sent.append(a)) == 0
+    assert not sent
 
 
 def test_run_sends_records_and_respects_cooldown(conn):

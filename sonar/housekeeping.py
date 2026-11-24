@@ -2,7 +2,7 @@
 
 - Snapshots older than 90 days are thinned to one per item, metric and day (the last of that day).
   Heat only needs the last ~10 days at full detail; older data is kept for long-term charts.
-- Scores older than 90 days are deleted (they can be recomputed from snapshots).
+- Scores older than 14 days are deleted (charts show 7 days; scores can be recomputed from snapshots).
 - VACUUM at most once a week, to give freed space back to the disk.
 """
 import logging
@@ -15,14 +15,15 @@ log = logging.getLogger("sonar.housekeeping")
 DAY = 86400
 
 
-def prune(conn, now: int, keep_days: int = 90) -> int:
+def prune(conn, now: int, keep_days: int = 90, keep_score_days: int = 14) -> int:
     cutoff = now - keep_days * DAY
     with conn:
         n = conn.execute(
             """DELETE FROM snapshots WHERE ts < ? AND rowid NOT IN (
                  SELECT MAX(rowid) FROM snapshots WHERE ts < ? GROUP BY item_id, metric, ts / 86400)""",
             (cutoff, cutoff)).rowcount
-        conn.execute("DELETE FROM scores WHERE ts < ?", (cutoff,))
+        # Scores are recomputed up to 4x an hour and only the last 7 days are charted: 14 days is plenty.
+        conn.execute("DELETE FROM scores WHERE ts < ?", (now - keep_score_days * DAY,))
         conn.execute("DELETE FROM news_seen WHERE ts < ?", (now - 30 * DAY,))
     return n
 

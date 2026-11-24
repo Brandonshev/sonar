@@ -133,7 +133,7 @@ Then set `SONAR_PUBLIC_URL` as in 2A.
 
 - Logs: `/opt/sonar/logs/sonar.log` and `web.log`, each rotated at 50 MB with 3 old files kept (200 MB max).
 - Database: `/opt/sonar/data/sonar.db`. Snapshots older than 90 days are thinned to one per day,
-  scores older than 90 days are deleted, and `VACUUM` runs at most weekly.
+  scores older than 14 days are deleted, and `VACUUM` runs at most weekly.
 
 ## Stopping or removing
 
