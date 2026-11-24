@@ -1,0 +1,27 @@
+[Unit]
+Description=Sonar dashboard (localhost only; HTTPS via Cloudflare Tunnel or Caddy)
+After=network-online.target
+
+[Service]
+User=sonar
+Group=sonar
+WorkingDirectory=/opt/sonar
+Environment=SONAR_DB=/opt/sonar/data/sonar.db
+Environment=SONAR_LOG_FILE=/opt/sonar/logs/web.log
+ExecStart=/opt/sonar/.venv/bin/python -m sonar.web
+Restart=on-failure
+RestartSec=5
+
+CPUQuota=25%
+MemoryHigh=120M
+MemoryMax=150M
+Nice=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sonar/data /opt/sonar/logs
+
+[Install]
+WantedBy=multi-user.target

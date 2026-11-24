@@ -9,7 +9,7 @@
     {"id": "heat", "type": "scorer.heat", "label": "Heat score", "enabled": true, "params": {"baseline_days": 7, "new_item_hours": 48, "early_weight": 1.0, "cross_source_bonus_pct": 25, "cross_source_min_heat": 2, "heat_for_100": 20, "trend_min_heat": 5, "metrics": {"github": {"stars": 5, "forks": 2}, "hackernews": {"points": 10, "comments": 5}, "producthunt": {"votes": 10, "comments": 3}, "reddit": {"score": 20, "comments": 5}}}},
     {"id": "alerts", "type": "output.ntfy_alert", "label": "Instant spike alert", "enabled": true, "params": {"min_heat": 5, "min_score": 0, "cooldown_hours": 24, "rejump_score": 20, "max_per_hour": 5, "warmup_hours": 24}},
     {"id": "digest", "type": "output.digest", "label": "Daily digest", "enabled": true, "at": "07:00", "tz": "Australia/Sydney", "params": {"top_per_source": 10, "new_entries": 10, "email": true}},
-    {"id": "dashboard", "type": "output.dashboard", "label": "Dashboard", "enabled": false, "params": {}}
+    {"id": "dashboard", "type": "output.dashboard", "label": "Dashboard", "enabled": true, "params": {"host": "127.0.0.1", "port": 8390, "top_n": 40, "tabs": {"Social": ["reddit", "tiktok", "instagram"], "YouTube": ["youtube"], "Tech products": ["producthunt", "hackernews"], "GitHub": ["github"], "Companies": ["companies", "news"], "Other": []}}}
   ],
   "edges": [["github", "heat"], ["hackernews", "heat"], ["producthunt", "heat"], ["reddit", "heat"], ["heat", "digest"], ["heat", "dashboard"], ["heat", "alerts"]]
 }

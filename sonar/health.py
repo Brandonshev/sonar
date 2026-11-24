@@ -24,17 +24,28 @@ def status(node: dict, h, now: int) -> str:
     return "OK"
 
 
-def report(conn, data: dict, now: int | None = None) -> str:
-    now = now or int(time.time())
+def rows(conn, data: dict, now: int) -> list[dict]:
+    """One dict per pipeline node plus the housekeeping jobs: id, label, status, last_ok, items, error."""
     health = {r["source"]: r for r in conn.execute("SELECT * FROM source_health")}
-    lines = [f"Sonar v{VERSION} health", f"{'node':<12} {'status':<8} {'last ok':<10} {'items':>6}  last error"]
-    jobs = [{"id": j, "enabled": True, "every": "2d" if j == "housekeeping" else "8d"} for j in ("housekeeping", "vacuum")]
+    jobs = [{"id": j, "label": j.title(), "enabled": True, "every": "2d" if j == "housekeeping" else "8d"}
+            for j in ("housekeeping", "vacuum")]
+    out = []
     for node in data["nodes"] + jobs:
         h = health.get(node["id"])
-        err = f"{ago(h['last_error'], now)}: {h['last_error_msg'][:70]}" if h and h["last_error"] else ""
-        items = h["items_last_run"] if h and h["items_last_run"] is not None else "-"
-        lines.append(f"{node['id']:<12} {status(node, h, now):<8} {ago(h and h['last_ok'], now):<10} "
-                     f"{items:>6}  {err}")
+        out.append({
+            "id": node["id"], "label": node.get("label", node["id"]), "status": status(node, h, now),
+            "last_ok": ago(h and h["last_ok"], now),
+            "items": h["items_last_run"] if h and h["items_last_run"] is not None else "-",
+            "error": f"{ago(h['last_error'], now)}: {h['last_error_msg']}" if h and h["last_error"] else "",
+        })
+    return out
+
+
+def report(conn, data: dict, now: int | None = None) -> str:
+    now = now or int(time.time())
+    lines = [f"Sonar v{VERSION} health", f"{'node':<12} {'status':<8} {'last ok':<10} {'items':>6}  last error"]
+    for r in rows(conn, data, now):
+        lines.append(f"{r['id']:<12} {r['status']:<8} {r['last_ok']:<10} {r['items']:>6}  {r['error'][:90]}")
     total = conn.execute("SELECT (SELECT COUNT(*) FROM items), (SELECT COUNT(*) FROM snapshots)").fetchone()
     lines.append(f"\n{total[0]} items, {total[1]} snapshots")
     return "\n".join(lines)

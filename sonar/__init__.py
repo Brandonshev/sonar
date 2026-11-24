@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 USER_AGENT = f"Sonar/{VERSION}"
 ROOT = Path(__file__).resolve().parent.parent
 
