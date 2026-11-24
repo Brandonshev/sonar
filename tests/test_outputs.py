@@ -179,3 +179,39 @@ def test_test_alert_flag(monkeypatch, capsys):
     monkeypatch.setattr(notify, "send_ntfy", lambda *a, **k: sent.append(a))
     assert run.main(["--test-alert"]) == 0
     assert sent and sent[0][0] == "Sonar test alert"
+
+
+class FakeSMTP:
+    """Records what send_email does; `tls` = whether the server offers STARTTLS."""
+    log: list = []
+    tls = True
+
+    def __init__(self, host, port, timeout):
+        self.log.append(("connect", host, port))
+
+    def __enter__(self): return self
+    def __exit__(self, *a): pass
+    def ehlo(self): pass
+    def has_extn(self, name): return self.tls
+    def starttls(self): self.log.append(("starttls",))
+    def login(self, u, p): self.log.append(("login", u))
+    def send_message(self, m): self.log.append(("send", m["To"]))
+
+
+@pytest.mark.parametrize("host,tls,expect", [
+    ("127.0.0.1", False, ["connect", "login", "send"]),            # Postline on the same server
+    ("smtp.example.com", True, ["connect", "starttls", "login", "send"]),
+    ("smtp.example.com", False, ["connect"]),                       # refuses: password would go in the clear
+])
+def test_send_email_tls_rules(monkeypatch, host, tls, expect):
+    from sonar.outputs import notify
+    FakeSMTP.log, FakeSMTP.tls = [], tls
+    monkeypatch.setattr(notify.smtplib, "SMTP", FakeSMTP)
+    for k, v in {"SMTP_HOST": host, "SMTP_PORT": "2587", "SMTP_USER": "sonar@x", "SMTP_PASSWORD": "p", "DIGEST_TO": "me@x"}.items():
+        monkeypatch.setenv(k, v)
+    if expect == ["connect"]:
+        with pytest.raises(RuntimeError, match="refusing"):
+            notify.send_email("s", "<p>h</p>", "t")
+    else:
+        notify.send_email("s", "<p>h</p>", "t")
+    assert [e[0] for e in FakeSMTP.log] == expect

@@ -48,6 +48,12 @@ def send_email(subject: str, html: str, text: str) -> None:
     msg.add_alternative(html, subtype="html")
     host, port = os.environ.get("SMTP_HOST", "smtp.gmail.com"), int(os.environ.get("SMTP_PORT", "587"))
     with smtplib.SMTP(host, port, timeout=30) as s:
-        s.starttls()
+        s.ehlo()
+        if s.has_extn("starttls"):
+            s.starttls()
+            s.ehlo()
+        elif host not in ("127.0.0.1", "localhost", "::1"):
+            # Never send the password unencrypted over a real network. Same-machine (e.g. Postline) is fine.
+            raise RuntimeError(f"{host}:{port} offers no STARTTLS; refusing to send the password unencrypted")
         s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
         s.send_message(msg)
