@@ -1,0 +1,20 @@
+{
+ "challengeInfo": {
+  "challenge": {
+   "id": "1622962893630470",
+   "title": "booktok",
+   "desc": "Calling all book creators! Share your favorite reads, recommendations, reviews, reactions, reading journeys, book hauls, literary insights, or creative takes inspired by any book you love. Whether you\u2019re into fiction, nonfiction, classics, poetry, romance, fantasy, history, culture, self-growth, or anything in between, we want to see your passion for books come to life. Post your video, inspire fellow readers, and join the BookTok conversation!",
+   "isCommerce": false
+  },
+  "stats": {
+   "videoCount": 0,
+   "viewCount": 569900000000
+  },
+  "statsV2": {
+   "videoCount": "89657631",
+   "viewCount": "569882707318"
+  }
+ },
+ "statusCode": 0,
+ "status_code": 0
+}

@@ -4,7 +4,7 @@ A trend radar that spots fast-climbing things early: repos, products, posts and 
 
 **heat = (growth in the last 24h) / max(normal daily growth over the 7 days before, floor)**. A heat of 5 means something is growing 5x faster than usual.
 
-Status: v0.7.0, deployed (see DEPLOY.md). Sources: GitHub, Hacker News, Product Hunt, Reddit (off until approved), YouTube, Google Trends and Wikipedia. Daily digest, instant ntfy alerts and a web dashboard. Collectors for GitHub, Hacker News, Product Hunt and Reddit (off until API access is approved), plus the heat scorer.
+Status: v0.8.0, deployed (see DEPLOY.md). Sources: GitHub, Hacker News, Product Hunt, Reddit (off until approved), YouTube, Google Trends, Wikipedia, TikTok hashtags and Instagram (off until approved). Daily digest, instant ntfy alerts and a web dashboard. Collectors for GitHub, Hacker News, Product Hunt and Reddit (off until API access is approved), plus the heat scorer.
 
 ## How it fits together
 
@@ -38,6 +38,12 @@ Each score is saved with plain-English reasons, e.g. `stars 56 -> 628 in 24h, 11
 - `python -m sonar.run --test-alert` sends a dummy ntfy message.
 
 All thresholds, times and caps are in `pipeline.json`.
+
+## Fragile sources (TikTok, Instagram)
+
+- **TikTok** (no library): post and view counts for watched hashtags, from TikTok's public web API. It **can't** see TikTok's trending lists or sound usage: those need a real browser, which is too heavy for this server. The watchlist is the seeds in `pipeline.json` plus hashtags that keep appearing in YouTube titles. Climbing TikTok tags are pushed (capped) to the Instagram and YouTube watchlists, and the same tag links across platforms (`tag:<name>`), so cross-platform climbs get the bonus. Category `social.video`.
+- **Instagram** (Instaloader, off until approved): hashtag post counts using a throwaway account's saved session.
+- Both break the platforms' terms for automated access and can be blocked at any time. They run with strict pacing plus random jitter (`min_interval_seconds`, `jitter_seconds`), and are switched off automatically after `max_failures` (3) failures in a row. When that happens you get one ntfy message and a warning on every dashboard page. Turn one back on with `python -m sonar.run --enable tiktok`.
 
 ## Run
 

@@ -85,6 +85,13 @@ MIGRATIONS = [
     -- remembered name lookups (e.g. "does Wikipedia have an article for name:radarly?") so they run once
     CREATE TABLE lookups (key TEXT PRIMARY KEY, result TEXT, ts INTEGER NOT NULL);
     """,
+    # 6: auto-disable after repeated failures, and auto-discovered watchlists (hashtags etc.)
+    """
+    ALTER TABLE source_health ADD COLUMN fail_streak INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE source_health ADD COLUMN disabled_at INTEGER;
+    CREATE TABLE watchlist (platform TEXT NOT NULL, value TEXT NOT NULL, origin TEXT NOT NULL,
+                            added INTEGER NOT NULL, PRIMARY KEY (platform, value));
+    """,
 ]
 
 ITEM_FIELDS = ("kind", "external_id", "title", "url", "category")
@@ -122,7 +129,7 @@ def upsert_item(conn: sqlite3.Connection, source: str, item: dict, now: int | No
            ON CONFLICT (source, external_id) DO UPDATE SET
              kind = excluded.kind, title = excluded.title, url = excluded.url,
              category = excluded.category, meta_json = excluded.meta_json,
-             entity_key = excluded.entity_key, alias_key = excluded.alias_key
+             entity_key = excluded.entity_key, alias_key = COALESCE(excluded.alias_key, items.alias_key)
            RETURNING id""",
         (source, *(item.get(f) for f in ITEM_FIELDS), now, json.dumps(item.get("meta") or {}), key,
          item.get("alias_key")),
@@ -153,11 +160,21 @@ def record_run(conn: sqlite3.Connection, node_id: str, ok: bool, items: int = 0,
     now = now or int(time.time())
     conn.execute("INSERT INTO source_health (source) VALUES (?) ON CONFLICT DO NOTHING", (node_id,))
     if ok:
-        conn.execute("UPDATE source_health SET last_run=?, last_ok=?, items_last_run=? WHERE source=?",
+        conn.execute("UPDATE source_health SET last_run=?, last_ok=?, items_last_run=?, fail_streak=0 WHERE source=?",
                      (now, now, items, node_id))
     else:
-        conn.execute("UPDATE source_health SET last_run=?, last_error=?, last_error_msg=? WHERE source=?",
-                     (now, now, (error or "")[:1000], node_id))
+        conn.execute("""UPDATE source_health SET last_run=?, last_error=?, last_error_msg=?, fail_streak=fail_streak+1
+                        WHERE source=?""", (now, now, (error or "")[:1000], node_id))
+
+
+def health_row(conn: sqlite3.Connection, node_id: str):
+    return conn.execute("SELECT * FROM source_health WHERE source=?", (node_id,)).fetchone()
+
+
+def set_disabled(conn: sqlite3.Connection, node_id: str, disabled: bool, now: int | None = None) -> None:
+    conn.execute("INSERT INTO source_health (source) VALUES (?) ON CONFLICT DO NOTHING", (node_id,))
+    conn.execute("UPDATE source_health SET disabled_at=?, fail_streak=CASE WHEN ? THEN fail_streak ELSE 0 END WHERE source=?",
+                 (now or int(time.time()) if disabled else None, disabled, node_id))
 
 
 def last_runs(conn: sqlite3.Connection) -> dict[str, int]:

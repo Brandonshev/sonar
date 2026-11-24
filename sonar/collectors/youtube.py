@@ -11,6 +11,7 @@ from datetime import datetime
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
+from .. import watchlist
 from .base import Collector
 
 API = "https://www.googleapis.com/youtube/v3"
@@ -79,7 +80,7 @@ class YouTube(Collector):
         Returns video id -> {"topic:..."}."""
         p = self.params
         out: dict[str, set] = {}
-        topics = p.get("topics", [])
+        topics = watchlist.values(self.conn, "youtube", p.get("topics", []))  # + hashtags pushed by TikTok
         rounds = p.get("search_rounds_per_day", 4)
         if not topics or not rounds:
             return {}
@@ -107,7 +108,9 @@ class YouTube(Collector):
 
 def to_result(v: dict, tags: set):
     s, st = v.get("snippet", {}), v.get("statistics", {})
+    hashtag = next((t.removeprefix("topic:#") for t in sorted(tags) if t.startswith("topic:#")), None)
     item = {
+        "alias_key": f"tag:{hashtag.lower()}" if hashtag else None,  # found via a TikTok hashtag: link them
         "kind": "video",
         "external_id": v["id"],
         "title": s.get("title"),

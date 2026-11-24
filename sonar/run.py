@@ -27,9 +27,15 @@ def node_module(node: dict):
     return importlib.import_module(f"sonar.{PACKAGES[kind]}.{name}")
 
 
-def run_node(conn, node: dict, module=None, now: int | None = None) -> bool:
-    """Run one node. Never raises: failures go to source_health and the event log."""
+def run_node(conn, node: dict, module=None, now: int | None = None, notify=None) -> bool:
+    """Run one node. Never raises: failures go to source_health and the event log.
+    A node with params.max_failures is switched off after that many failures in a row, with one
+    ntfy message; it stays off until `python -m sonar.run --enable <id>`."""
     now = now or int(time.time())
+    h = db.health_row(conn, node["id"])
+    if h and h["disabled_at"]:
+        log.info("node %s is auto-disabled; skipping (re-enable with --enable %s)", node["id"], node["id"])
+        return False
     try:
         module = module or node_module(node)
         n = module.run(conn, node)
@@ -38,9 +44,25 @@ def run_node(conn, node: dict, module=None, now: int | None = None) -> bool:
         return True
     except Exception as e:  # one broken node must never stop the rest
         log.exception("node %s failed", node["id"])
+        err = f"{type(e).__name__}: {e}"
         with conn:
-            db.record_run(conn, node["id"], ok=False, error=f"{type(e).__name__}: {e}", now=now)
+            db.record_run(conn, node["id"], ok=False, error=err, now=now)
             db.emit_event(conn, "node.failed", now=now, node=node["id"], error=str(e)[:500])
+        limit = node.get("params", {}).get("max_failures")
+        streak = db.health_row(conn, node["id"])["fail_streak"]
+        if limit and streak >= limit:
+            with conn:
+                db.set_disabled(conn, node["id"], True, now)
+                db.emit_event(conn, "source.disabled", now=now, node=node["id"], failures=streak, error=err[:500])
+            log.error("node %s disabled after %d failures in a row", node["id"], streak)
+            try:
+                from .outputs.notify import public_url, send_ntfy
+                (notify or send_ntfy)(f"⚠️ Sonar: {node.get('label', node['id'])} switched off",
+                                      f"{streak} failures in a row. Last error: {err[:300]}\n"
+                                      f"Re-enable with: python -m sonar.run --enable {node['id']}",
+                                      click=public_url("health"), tags=["warning"], priority=4)
+            except Exception:
+                log.exception("could not send the disabled-source alert")
         return False
 
 
@@ -99,6 +121,7 @@ def main(argv=None) -> int:
     g.add_argument("--all-due", action="store_true", help="run every node whose schedule is due")
     g.add_argument("--score", action="store_true", help="score now and print the top 20 per source")
     g.add_argument("--test-alert", action="store_true", help="send a dummy ntfy message")
+    g.add_argument("--enable", metavar="NODE", help="turn an auto-disabled node back on")
     p.add_argument("--pipeline", default=pipeline.PIPELINE_PATH)
     args = p.parse_args(argv)
 
@@ -121,6 +144,11 @@ def main(argv=None) -> int:
         print("Test alert sent.")
         return 0
     conn = db.connect()
+    if args.enable:
+        with conn:
+            db.set_disabled(conn, args.enable, False)
+        print(f"{args.enable} re-enabled.")
+        return 0
 
     if args.score:
         node = next((n for n in data["nodes"] if n["type"] == "scorer.heat"), None)

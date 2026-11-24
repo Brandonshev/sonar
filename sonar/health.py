@@ -15,6 +15,8 @@ def ago(ts: int | None, now: int) -> str:
 def status(node: dict, h, now: int) -> str:
     if not node["enabled"]:
         return "OFF"
+    if h and h["disabled_at"]:
+        return "DISABLED"  # switched off automatically after repeated failures
     if not h or not h["last_run"]:
         return "WAITING"
     if h["last_error"] and (not h["last_ok"] or h["last_error"] > h["last_ok"]):

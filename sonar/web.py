@@ -168,7 +168,8 @@ svg.big{width:100%;height:140px;display:block}.chart.empty{color:var(--muted);fo
 table{width:100%;border-collapse:collapse;font-size:14px}th{text-align:left;color:var(--muted);font-weight:500}
 td,th{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 .st{font:600 11px ui-monospace,Menlo,monospace;padding:2px 7px;border-radius:6px;background:var(--chip)}
-.st.OK{color:var(--accent)}.st.FAILING,.st.STALE{color:#fff;background:var(--hot)}.st.OFF,.st.WAITING{color:var(--muted)}
+.st.OK{color:var(--accent)}.st.FAILING,.st.STALE,.st.DISABLED{color:#fff;background:var(--hot)}.st.OFF,.st.WAITING{color:var(--muted)}
+.warn{display:block;margin:4px 0 16px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--hot) 14%,transparent);color:var(--fg);font-size:14px}.warn:hover{text-decoration:none}
 .err{color:var(--muted);font-size:12px;overflow-wrap:anywhere}td:nth-child(2),td:nth-child(3){white-space:nowrap}
 .empty-state{padding:40px 8px;color:var(--muted);text-align:center}
 .btn{display:inline-block;padding:10px 16px;border-radius:10px;background:var(--accent);color:var(--bg);font-weight:600;border:0;font-size:15px}
@@ -213,6 +214,19 @@ class Site:
 
     def conn(self):
         return db.connect(self.db_path)
+
+    def layout(self, title, body, tab="", tabs=(), meta="", nav=True):
+        return layout(title, self.banner() + body, tab, tabs, meta, nav)
+
+    def banner(self) -> str:
+        """A warning on every page while an enabled source is failing, stale or switched off."""
+        with closing(self.conn()) as conn:
+            bad = [r for r in health.rows(conn, self.data, int(time.time())) if r["status"] in ("FAILING", "DISABLED", "STALE")]
+        if not bad:
+            return ""
+        names = ", ".join(f"{escape(r['label'])} ({r['status'].lower()})" for r in bad)
+        return f'<a class="warn" href="/health">⚠️ {names}</a>'
+
 
     def sources_for(self, tab: str) -> tuple[list, bool]:
         """(sources, negate). 'Other' (an empty list) means every source no other tab lists."""
@@ -280,7 +294,7 @@ class Site:
             srcs, neg = self.sources_for(tab)
             sub = "Every source not in another tab" if neg else "Sources: " + ", ".join(srcs)
         body = f"<h1>{escape(title)}</h1><p class='sub'>{escape(sub)} · score 0–100, × = heat</p>{self.list_html(rows)}"
-        return layout(title, body, tab or "Top", self.tabs, self.meta(latest, now))
+        return self.layout(title, body, tab or "Top", self.tabs, self.meta(latest, now))
 
     def page_item(self, now, item_id: int):
         with closing(self.conn()) as conn:
@@ -316,7 +330,7 @@ class Site:
         body = (head + chart([tuple(h) for h in hist], "score, last 7 days") + "<h2>History</h2>" + "".join(charts)
                 + f"<h2>On {len(same)} source{'s' if len(same) != 1 else ''}</h2><table>{srcs}</table>"
                 + f"<h2>Alerts</h2><table><tr><th>Sent</th><th>Source</th><th>Score</th></tr>{alert_rows}</table>")
-        return layout(item["title"] or "Item", body, "", self.tabs)
+        return self.layout(item["title"] or "Item", body, "", self.tabs)
 
     def page_digests(self):
         files = sorted(self.digests.glob("????-??-??.html"), reverse=True) if self.digests.exists() else []
@@ -324,7 +338,7 @@ class Site:
                        f'{datetime.strptime(f.stem, "%Y-%m-%d").strftime("%A %-d %B %Y")}</a></li>' for f in files)
         body = "<h1>Digests</h1><p class='sub'>One every morning at 7:00 Sydney time</p>" + (
             f'<ul class="list">{rows}</ul>' if rows else '<div class="empty-state">No digests yet.</div>')
-        return layout("Digests", body, "Digests", self.tabs)
+        return self.layout("Digests", body, "Digests", self.tabs)
 
     def digest_file(self, day: str):
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
@@ -347,14 +361,14 @@ class Site:
         since += f" · YouTube quota today {yt[0]:,} / 10,000 units" if yt else ""
         body = (f"<h1>Health</h1><p class='sub'>{totals[0]:,} items · {totals[1]:,} snapshots{since}</p>"
                 f"<table><tr><th>Node</th><th>Status</th><th>Last OK</th><th class='hide-sm'>Items</th><th>Last error</th></tr>{trs}</table>")
-        return layout("Health", body, "Health", self.tabs)
+        return self.layout("Health", body, "Health", self.tabs)
 
     def page_login(self, error=""):
         bad = f'<p class="bad">{escape(error)}</p>' if error else ""
         body = (f'<form class="login" method="post" action="/login"><div class="brand">{LOGO}Sonar</div>{bad}'
                 f'<input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required>'
                 f'<button class="btn">Sign in</button></form>')
-        return layout("Sign in", body, nav=False)
+        return layout("Sign in", body, nav=False)  # no banner: health is private
 
 
 # ---------- HTTP ----------
