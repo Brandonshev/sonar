@@ -119,6 +119,18 @@ def test_login_throttle(server):
     assert login(server)[0] == 429  # even the right password is refused while blocked
 
 
+def test_plain_http_via_proxy_goes_to_https(server, monkeypatch):
+    monkeypatch.setenv("SONAR_PUBLIC_URL", "https://sonar.example.com")
+    req = urllib.request.Request(server + "/login", headers={"X-Forwarded-Proto": "http"})
+    try:
+        opener.open(req)
+        assert False, "expected a redirect"
+    except urllib.error.HTTPError as e:
+        assert e.code == 301 and e.headers["Location"] == "https://sonar.example.com/login"
+    code, _, h = get(server + "/login")  # https (no header) is served, with HSTS
+    assert code == 200 and "max-age" in h["Strict-Transport-Security"]
+
+
 def test_no_password_set_fails_closed(server, monkeypatch):
     monkeypatch.delenv("SONAR_DASH_PASSWORD_HASH")
     assert login(server)[0] == 503

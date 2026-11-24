@@ -377,6 +377,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy",
                          "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'")
+        if os.environ.get("SONAR_PUBLIC_URL", "").startswith("https://"):
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
         for k, v in (headers or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -400,7 +402,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def insecure(self) -> bool:
+        """Came in over plain http through the proxy while we have an https address: send it to https."""
+        public = os.environ.get("SONAR_PUBLIC_URL", "")
+        if public.startswith("https://") and self.headers.get("X-Forwarded-Proto") == "http":
+            self.send(301, "", headers={"Location": public.rstrip("/") + self.path})
+            return True
+        return False
+
     def do_GET(self):
+        if self.insecure():
+            return
         now = int(time.time())
         path = urlsplit(self.path).path
         if path == "/favicon.svg":
@@ -436,6 +448,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send(500, layout("Error", "<h1>Something broke</h1><p class='sub'>It's in the log.</p>", "", self.site.tabs))
 
     def do_POST(self):
+        if self.insecure():
+            return
         now = int(time.time())
         if urlsplit(self.path).path != "/login":
             return self.send(404, "")
