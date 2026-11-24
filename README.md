@@ -4,7 +4,7 @@ A trend radar that spots fast-climbing things early: repos, products, posts and 
 
 **heat = (growth in the last 24h) / max(normal daily growth over the 7 days before, floor)**. A heat of 5 means something is growing 5x faster than usual.
 
-Status: v0.4.0, deployed (see DEPLOY.md). Collectors for GitHub, Hacker News, Product Hunt and Reddit (off until API access is approved), plus the heat scorer.
+Status: v0.5.0, deployed (see DEPLOY.md). Daily digest and instant ntfy alerts. Collectors for GitHub, Hacker News, Product Hunt and Reddit (off until API access is approved), plus the heat scorer.
 
 ## How it fits together
 
@@ -30,6 +30,14 @@ For each item and metric (stars, points, votes...):
 - **Score 0-100:** heat on a log scale, normalised per source so GitHub stars and HN points are comparable. A heat of 20 (configurable) scores 100.
 
 Each score is saved with plain-English reasons, e.g. `stars 56 -> 628 in 24h, 114x its normal rate`. When an item's heat crosses `trend_min_heat` (5), a `trend.found` event is logged.
+
+## Alerts and digest
+
+- **Instant alert** (`output.ntfy_alert`, runs after each scoring): an ntfy push when an item's heat is at least `min_heat` (5) and its score at least `min_score`. The same item is not alerted again within `cooldown_hours` (24) unless its score has risen by `rejump_score` (20). There are never more than `max_per_hour` (5) alerts an hour, and none during the first `warmup_hours` (24) of collecting.
+- **Daily digest** (`output.digest`, `"at": "07:00"`, `"tz": "Australia/Sydney"`): top climbers per source, new entries, broken sources and the version, saved as `data/digests/YYYY-MM-DD.html`. It's sent as a short ntfy message, and also emailed if `SMTP_*` and `DIGEST_TO` are set in `.env`.
+- `python -m sonar.run --test-alert` sends a dummy ntfy message.
+
+All thresholds, times and caps are in `pipeline.json`.
 
 ## Run
 

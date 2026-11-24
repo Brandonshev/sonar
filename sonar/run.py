@@ -5,7 +5,8 @@
 
 A node's code lives in a module named by its type: source.github -> sonar.collectors.github,
 scorer.x / filter.x -> sonar.scoring.x, output.x -> sonar.outputs.x. Each module exposes
-run(conn, node) -> int. A node with no "every" runs when one of its upstream nodes ran.
+run(conn, node) -> int. A node runs on "every" (interval) or "at" (daily time in "tz");
+with neither, it runs when one of its upstream nodes ran.
 """
 import argparse
 import importlib
@@ -49,9 +50,12 @@ def due_nodes(data: dict, last_runs: dict, now: int, ran: set) -> list[dict]:
     for node in sorted(data["nodes"], key=lambda n: ORDER.index(n["type"].split(".")[0])):
         if not node["enabled"]:
             continue
+        last = last_runs.get(node["id"])
         if "every" in node:
-            last = last_runs.get(node["id"])
             if last is None or now - last >= pipeline.every_seconds(node["every"]):
+                out.append(node)
+        elif "at" in node:
+            if pipeline.at_due(node, last, now):
                 out.append(node)
         elif any(u in ran for u in pipeline.upstream(data, node["id"])):
             out.append(node)
@@ -94,6 +98,7 @@ def main(argv=None) -> int:
     g.add_argument("--source", "--node", dest="node", help="run one node by id")
     g.add_argument("--all-due", action="store_true", help="run every node whose schedule is due")
     g.add_argument("--score", action="store_true", help="score now and print the top 20 per source")
+    g.add_argument("--test-alert", action="store_true", help="send a dummy ntfy message")
     p.add_argument("--pipeline", default=pipeline.PIPELINE_PATH)
     args = p.parse_args(argv)
 
@@ -105,6 +110,16 @@ def main(argv=None) -> int:
         log.error("refusing to run: %s", e)
         return 2
     log.info("Sonar v%s starting", VERSION)
+    if args.test_alert:
+        from .outputs.notify import send_ntfy
+        try:
+            send_ntfy("Sonar test alert", f"If you can read this, Sonar v{VERSION} alerts work.",
+                      tags=["satellite"])
+        except Exception as e:
+            print(f"Test alert failed: {e}")
+            return 1
+        print("Test alert sent.")
+        return 0
     conn = db.connect()
 
     if args.score:

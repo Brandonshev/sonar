@@ -43,7 +43,16 @@
         "every": {
           "type": "string",
           "pattern": "^[1-9][0-9]*[mhd]$",
-          "description": "Schedule like 30m, 3h, 1d. Without it, the node runs when an upstream node runs."
+          "description": "Schedule like 30m, 3h, 1d. Without it (or 'at'), the node runs when an upstream node runs."
+        },
+        "at": {
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "description": "Run once a day at this local time (HH:MM, 24h). Use instead of 'every'."
+        },
+        "tz": {
+          "type": "string",
+          "description": "IANA timezone for 'at', e.g. Australia/Sydney. Defaults to UTC."
         },
         "params": { "type": "object", "description": "Settings passed to the node's code." }
       }

@@ -71,6 +71,10 @@ MIGRATIONS = [
     CREATE INDEX scores_ts ON scores (ts);
     CREATE INDEX snapshots_ts ON snapshots (ts);
     """,
+    # 4: remember the score an alert was sent at (for the "jumped another 20" re-alert rule)
+    """
+    ALTER TABLE alerts_sent ADD COLUMN score REAL;
+    """,
 ]
 
 ITEM_FIELDS = ("kind", "external_id", "title", "url", "category")

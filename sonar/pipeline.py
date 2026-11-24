@@ -1,7 +1,9 @@
 """Loads and validates pipeline.json against pipeline.schema.json."""
 import json
 import re
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import jsonschema
 
@@ -32,6 +34,14 @@ def validate(data: dict) -> dict:
         for end in (a, b):
             if end not in ids:
                 raise PipelineError(f"edge [{a}, {b}] points at unknown node {end!r}")
+    for n in data["nodes"]:
+        if "every" in n and "at" in n:
+            raise PipelineError(f"node {n['id']!r} has both 'every' and 'at'; pick one")
+        if "tz" in n:
+            try:
+                ZoneInfo(n["tz"])
+            except (ZoneInfoNotFoundError, ValueError):
+                raise PipelineError(f"node {n['id']!r} has unknown timezone {n['tz']!r}") from None
     return data
 
 
@@ -48,6 +58,17 @@ def every_seconds(every: str) -> int:
     if not m:
         raise PipelineError(f"bad schedule {every!r}")
     return int(m[1]) * UNITS[m[2]]
+
+
+def at_due(node: dict, last_run: int | None, now: int) -> bool:
+    """For a daily "at": "HH:MM" node: due if it hasn't run since the most recent HH:MM in its tz."""
+    tz = ZoneInfo(node.get("tz", "UTC"))
+    local = datetime.fromtimestamp(now, tz)
+    hh, mm = map(int, node["at"].split(":"))
+    target = local.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if target > local:
+        target -= timedelta(days=1)
+    return last_run is None or last_run < target.timestamp()
 
 
 def upstream(data: dict, node_id: str) -> list[str]:
