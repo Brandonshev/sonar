@@ -1,1 +1,3 @@
 jsonschema>=4.18
+# Instagram source only. Scanned with SkillSpector before adding (see git log); pinned so updates are deliberate.
+instaloader==4.16
