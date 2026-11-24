@@ -75,7 +75,7 @@ def to_result(r: dict, topic: str, geo: str):
         "title": q,
         "url": f"https://trends.google.com/trends/explore?q={quote(q)}&geo={geo}",
         "category": f"Rising: {topic}",
-        "alias_key": alias_key(q),
+        "alias_key": alias_key(q, min_words=2),
         "meta": {"topic": topic, "geo": geo, "breakout": breakout},
     }
     # "Breakout" means growth over 5000%; Google reports it as a number too, but cap it so it compares sanely.

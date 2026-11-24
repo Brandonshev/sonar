@@ -51,7 +51,7 @@ def to_result(query: str, geo: str, approx: int, news_url: str | None, news_titl
         "title": query,
         "url": f"https://trends.google.com/trends/explore?q={quote(query)}&geo={geo}&date=now%201-d",
         "category": f"Search {geo}",
-        "alias_key": alias_key(query),
+        "alias_key": alias_key(query, min_words=2),
         "meta": {"geo": geo, "news_url": news_url, "news_title": news_title},
     }
     return item, {"traffic": approx}

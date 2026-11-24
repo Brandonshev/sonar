@@ -85,6 +85,8 @@ def test_google_trends_rss(conn, monkeypatch):
     assert google_trends.run(conn, {"id": "google_trends", "params": {"geos": ["AU"]}}) == 3
     row = conn.execute("SELECT * FROM items WHERE title='vaibhav sooryavanshi'").fetchone()
     assert row["category"] == "Search AU" and row["alias_key"] == "name:vaibhavsooryavanshi"
+    one_word = conn.execute("SELECT alias_key FROM items WHERE title='reformation'").fetchone()[0]
+    assert one_word is None  # too ambiguous to link by name
     assert json.loads(row["meta_json"])["news_url"].startswith("https://")
     vals = {r[0]: r[1] for r in conn.execute("SELECT i.title, s.value FROM snapshots s JOIN items i ON i.id=s.item_id")}
     assert vals["vaibhav sooryavanshi"] == 500
@@ -170,17 +172,25 @@ def q(name):
     return json.loads((FIX / f"wiki_query_{name}.json").read_text())
 
 
-@pytest.mark.parametrize("fixture,software,expect", [
-    ("taylorswift", False, "Taylor_Swift"),               # a search term: any real article
-    ("taylorswift", True, None),                          # a repo called that: not software, refuse
-    ("ladybird", True, None),                             # 'Ladybird' redirects to the beetle article
-    ("radar", True, None),                                # a repo called 'radar' is not the radio system
-    ("ladybirdwebbrowser", True, "Ladybird_(web_browser)"),
+@pytest.mark.parametrize("name,fixture,search,expect", [
+    ("taylor swift", "taylorswift", True, "Taylor_Swift"),   # a search term naming a real article
+    ("taylorswift", "taylorswift", False, None),             # a repo called that: not software, refuse
+    ("ladybird", "ladybird", False, None),                   # 'Ladybird' redirects to the beetle article
+    ("radar", "radar", False, None),                         # a repo called 'radar' is not the radio system
+    ("ladybird", "ladybirdwebbrowser", False, "Ladybird_(web_browser)"),
+    ("reformation", "radar", True, None),                    # one-word searches never link
+    ("ladybird browser", "ladybird", True, None),            # redirect lost a word ('browser'): refuse
 ])
-def test_wikipedia_match_avoids_false_links(monkeypatch, fixture, software, expect):
+def test_wikipedia_match_avoids_false_links(monkeypatch, name, fixture, search, expect):
     route(monkeypatch, [("w/api.php", q(fixture))])
-    w = wikipedia.Wikipedia({"id": "wikipedia"})
-    assert w.match("x", require_software=software) == expect
+    assert wikipedia.Wikipedia({"id": "wikipedia"}).match(name, search=search) == expect
+
+
+def test_wikipedia_match_tries_title_case(monkeypatch):
+    calls = route(monkeypatch, [("titles=rob+lowe", {"query": {"pages": [{"title": "Rob lowe", "missing": True}]}}),
+                                ("titles=Rob+Lowe", {"query": {"pages": [{"title": "Rob Lowe", "description": "American actor"}]}})])
+    assert wikipedia.Wikipedia({"id": "wikipedia"}).match("rob lowe", search=True) == "Rob_Lowe"
+    assert len(calls) == 2
 
 
 def test_wikipedia_links_climbing_names_and_scorer_gives_cross_source_bonus(conn, monkeypatch):
@@ -216,3 +226,8 @@ def test_scorer_links_by_alias_key(conn):
 ])
 def test_alias_key(name, min_len, key):
     assert alias_key(name, min_len) == key
+
+
+def test_alias_key_min_words():
+    assert alias_key("Reformation", min_words=2) is None
+    assert alias_key("Sam Bankman-Fried", min_words=2) == "name:sambankmanfried"

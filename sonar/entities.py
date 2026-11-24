@@ -55,13 +55,18 @@ GENERIC_NAMES = {
 }
 
 
-def alias_key(name: str | None, min_len: int = 5) -> str | None:
+def words(name: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", re.sub(r"\(.*?\)", "", name.lower()))
+
+
+def alias_key(name: str | None, min_len: int = 5, min_words: int = 1) -> str | None:
     """A careful name key: 'Radarly: Spot trends' and 'acme/radarly' -> name:radarly.
-    Returns None for short or generic names, which would cause false matches."""
+    Returns None for short or generic names, which would cause false matches. Use min_words=2 for
+    general-world names (searches, Wikipedia titles): one word there ('Reformation') is too ambiguous."""
     if not name:
         return None
-    name = re.sub(r"\(.*?\)", "", name.split(":")[0].split(" - ")[0].split(" – ")[0])
-    norm = re.sub(r"[^a-z0-9]", "", name.lower())
-    if len(norm) < min_len or norm in GENERIC_NAMES or norm.isdigit():
+    w = words(name.split(":")[0].split(" - ")[0].split(" – ")[0])
+    norm = "".join(w)
+    if len(w) < min_words or len(norm) < min_len or norm in GENERIC_NAMES or norm.isdigit():
         return None
     return f"name:{norm}"

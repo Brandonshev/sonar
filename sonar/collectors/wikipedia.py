@@ -18,7 +18,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 
 from .. import db
-from ..entities import alias_key
+from ..entities import alias_key, words
 from .base import Collector
 
 PV = "https://wikimedia.org/api/rest_v1/metrics/pageviews"
@@ -81,7 +81,7 @@ class Wikipedia(Collector):
                 item = {"kind": "article", "external_id": title, "title": title.replace("_", " "),
                         "url": f"https://en.wikipedia.org/wiki/{quote(title)}", "category": "Wikipedia",
                         "entity_key": keys.get("entity_key") or (old and old["entity_key"]) or f"wiki:{title}",
-                        "alias_key": keys.get("alias_key") or (old and old["alias_key"]) or alias_key(title.replace("_", " "))}
+                        "alias_key": keys.get("alias_key") or (old and old["alias_key"]) or alias_key(title.replace("_", " "), min_words=2)}
                 item_id = db.upsert_item(conn, self.id, item, now=days[0][0])
                 total = self.last_total(item_id)
                 for ts, views in days:
@@ -132,7 +132,7 @@ class Wikipedia(Collector):
             budget -= 1
             name = r["title"].split(":")[0] if r["source"] == "producthunt" else \
                 r["title"].split("/")[-1] if r["source"] == "github" else r["title"]
-            title = self.match(name, require_software=not is_search)
+            title = self.match(name, search=is_search)
             with self.conn:
                 self.conn.execute("INSERT OR REPLACE INTO lookups (key, result, ts) VALUES (?, ?, ?)",
                                   (r["alias_key"], title, now))
@@ -140,18 +140,31 @@ class Wikipedia(Collector):
                 out[title] = {"alias_key": r["alias_key"], "entity_key": None if is_search else r["entity_key"]}
         return out
 
-    def match(self, name: str, require_software: bool) -> str | None:
-        """Exact-title article for this name (following redirects), or None. Avoids false matches."""
-        data = self.get_json(f"{WIKI_API}?" + urlencode({
-            "action": "query", "format": "json", "formatversion": 2, "redirects": 1,
-            "prop": "pageprops|description", "titles": name}))
-        pages = data.get("query", {}).get("pages", [])
-        if not pages or pages[0].get("missing") or "disambiguation" in pages[0].get("pageprops", {}):
+    def match(self, name: str, search: bool) -> str | None:
+        """The article for this name, or None when unsure. Rules that avoid false links:
+          - never a missing or disambiguation page
+          - searches: at least two words, and every word must still be in the title after
+            Wikipedia's redirects ('storm watch' -> 'Storm warning' is refused)
+          - products/repos: the article's short description must sound like software or a company
+        Wikipedia titles are case-sensitive, so 'rob lowe' is also tried as 'Rob Lowe'."""
+        if search and len(words(name)) < 2:
             return None
-        desc = (pages[0].get("description") or "").lower()
-        if require_software and not any(w in desc for w in SOFTWARE_WORDS):
-            return None
-        return pages[0]["title"].replace(" ", "_")
+        for candidate in dict.fromkeys([name, name.title()]):
+            data = self.get_json(f"{WIKI_API}?" + urlencode({
+                "action": "query", "format": "json", "formatversion": 2, "redirects": 1,
+                "prop": "pageprops|description", "titles": candidate}))
+            pages = data.get("query", {}).get("pages", [])
+            if not pages or pages[0].get("missing"):
+                continue
+            page = pages[0]
+            if "disambiguation" in page.get("pageprops", {}):
+                return None
+            if search and not set(words(name)) <= set(words(page["title"])):
+                return None
+            if not search and not any(w in (page.get("description") or "").lower() for w in SOFTWARE_WORDS):
+                return None
+            return page["title"].replace(" ", "_")
+        return None
 
     # --- pageviews ---
 
