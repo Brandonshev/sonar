@@ -1,0 +1,25 @@
+[Unit]
+Description=Keep requesting an Oracle Always Free ARM A1 server until one is free
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=grab-a1
+Group=grab-a1
+WorkingDirectory=/opt/grab-a1
+Environment=OCI_DIR=/opt/grab-a1/.oci
+Environment=SSH_KEY=/opt/grab-a1/postline_oracle.pub
+Environment=PATH=/opt/grab-a1/venv/bin:/usr/bin:/bin
+EnvironmentFile=/opt/grab-a1/env
+ExecStart=/opt/grab-a1/grab-a1.sh
+# Stops by itself on success or on an unexpected error; never restart automatically.
+Restart=no
+
+CPUQuota=25%
+MemoryMax=250M
+Nice=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/grab-a1

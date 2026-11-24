@@ -8,9 +8,11 @@
 - The new server reuses Postline's public subnet (`~/.oci/postline_ids`) and SSH key (`~/.ssh/postline_oracle`).
 
 **What to do:**
-1. Run `ops/grab-a1.sh` in the background on the Mac (it must stay awake; `caffeinate -i ./grab-a1.sh`). It retries every 90 s, stops on success, and stops on any error that isn't a capacity or rate-limit error.
-2. On success: note the new public IP (`oci compute instance list-vnics --instance-id <id>`), add a `Host sonar-a1` entry to `~/.ssh/config`, check `ssh sonar-a1 nproc` shows 4, and tell Brandon.
-3. If the script stops on an unexpected error, read the message and tell Brandon; don't guess at fixes that touch billing or the Postline server.
+1. The retry script already runs **on the Oracle server** as `grab-a1.service`, as its own locked-down `grab-a1` user with a copy of the OCI key in `/opt/grab-a1/.oci` (mode 600). It retries every 90 s and stops by itself on success or on any error that isn't capacity or rate limiting. It reports both by ntfy on Brandon's Sonar topic. Check on it with:
+   `ssh postline-oracle 'systemctl is-active grab-a1; sudo journalctl -u grab-a1 -n 5 -o cat'`
+2. On success: note the new public IP (`oci compute instance list-vnics --instance-id <id>`), add a `Host sonar-a1` entry to `~/.ssh/config` on the Mac, check `ssh sonar-a1 nproc` shows 4, and tell Brandon. Then **remove the key from the server**:
+   `ssh postline-oracle 'sudo systemctl disable grab-a1; sudo rm -rf /opt/grab-a1/.oci'`
+3. If it stops on an unexpected error, read the log and tell Brandon; don't guess at fixes that touch billing or the Postline server. To restart it: `ssh postline-oracle 'sudo systemctl start grab-a1'`.
 4. Don't move any apps onto the new server yourself. Moving Sonar is a separate step Brandon will ask for (the "Moving to the ARM A1 server later" section of `DEPLOY.md` in the Sonar repo).
 
 **Rules:**
