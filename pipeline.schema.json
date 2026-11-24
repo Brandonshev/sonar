@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Brandonshev/sonar/pipeline.schema.json",
+  "title": "Sonar pipeline",
+  "description": "Every source, scorer, filter and output Sonar runs, and how they connect.",
+  "type": "object",
+  "required": ["version", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1, "description": "Format version of this file." },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "[from, to] pairs. Data or triggers flow from the first node to the second.",
+      "items": {
+        "type": "array",
+        "prefixItems": [{ "$ref": "#/$defs/id" }, { "$ref": "#/$defs/id" }],
+        "minItems": 2,
+        "maxItems": 2
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "type": {
+          "type": "string",
+          "pattern": "^(source|scorer|filter|output)\\.[a-z0-9_]+$",
+          "description": "Kind and implementation, e.g. source.github."
+        },
+        "label": { "type": "string", "description": "Human name for the workflow map." },
+        "enabled": { "type": "boolean" },
+        "every": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*[mhd]$",
+          "description": "Schedule like 30m, 3h, 1d. Without it, the node runs when an upstream node runs."
+        },
+        "params": { "type": "object", "description": "Settings passed to the node's code." }
+      }
+    }
+  }
+}
