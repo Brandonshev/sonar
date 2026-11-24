@@ -4,7 +4,7 @@ A trend radar that spots fast-climbing things early: repos, products, posts and 
 
 **heat = (growth in the last 24h) / max(normal daily growth over the 7 days before, floor)**. A heat of 5 means something is growing 5x faster than usual.
 
-Status: v0.8.0, deployed (see DEPLOY.md). Sources: GitHub, Hacker News, Product Hunt, Reddit (off until approved), YouTube, Google Trends, Wikipedia, TikTok hashtags and Instagram (off until approved). Daily digest, instant ntfy alerts and a web dashboard. Collectors for GitHub, Hacker News, Product Hunt and Reddit (off until API access is approved), plus the heat scorer.
+Status: v0.9.0, deployed (see DEPLOY.md). Sources: GitHub, Hacker News, Product Hunt, Reddit (off until approved), YouTube, Google Trends, Wikipedia, TikTok hashtags, Instagram (off until approved) and news, plus a company heat score. Daily digest, instant ntfy alerts and a web dashboard. Collectors for GitHub, Hacker News, Product Hunt and Reddit (off until API access is approved), plus the heat scorer.
 
 ## How it fits together
 
@@ -38,6 +38,10 @@ Each score is saved with plain-English reasons, e.g. `stars 56 -> 628 in 24h, 11
 - `python -m sonar.run --test-alert` sends a dummy ntfy message.
 
 All thresholds, times and caps are in `pipeline.json`.
+
+## Companies
+
+`companies.json` lists the companies Sonar follows (name, careful aliases, domain, GitHub org, Wikipedia article). `source.news` counts how many articles and posts name each one: Google News and tech/business RSS feeds go into `mentions`, Hacker News titles into `hn_mentions` and Reddit titles into `reddit_mentions`. Each article counts once. `scorer.companies` then rolls up news, HN, Reddit, Wikipedia views, Product Hunt launches and GitHub org activity into one company heat: the strongest signal, plus 25% for each other signal also climbing. The Companies tab shows the breakdown. Attention signals only, not financial advice.
 
 ## Fragile sources (TikTok, Instagram)
 

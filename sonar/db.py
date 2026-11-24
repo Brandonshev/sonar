@@ -92,6 +92,11 @@ MIGRATIONS = [
     CREATE TABLE watchlist (platform TEXT NOT NULL, value TEXT NOT NULL, origin TEXT NOT NULL,
                             added INTEGER NOT NULL, PRIMARY KEY (platform, value));
     """,
+    # 7: articles/posts already counted for company mentions (pruned after 30 days)
+    """
+    CREATE TABLE news_seen (key TEXT PRIMARY KEY, ts INTEGER NOT NULL);
+    CREATE INDEX news_seen_ts ON news_seen (ts);
+    """,
 ]
 
 ITEM_FIELDS = ("kind", "external_id", "title", "url", "category")

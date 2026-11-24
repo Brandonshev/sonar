@@ -1,0 +1,509 @@
+{
+ "_note": "Companies Sonar rolls signals up for. Aliases match as whole words, case-sensitive, so 'Meta' the word is not matched (only 'Meta Platforms', 'Meta's'...). Tickers are labels only: attention signals, not financial advice.",
+ "companies": [
+  {
+   "name": "Apple",
+   "aliases": [
+    "Apple",
+    "iPhone",
+    "Tim Cook"
+   ],
+   "domain": "apple.com",
+   "github": "apple",
+   "wikipedia": "Apple_Inc.",
+   "ticker": "AAPL"
+  },
+  {
+   "name": "Microsoft",
+   "aliases": [
+    "Microsoft",
+    "Satya Nadella"
+   ],
+   "domain": "microsoft.com",
+   "github": "microsoft",
+   "wikipedia": "Microsoft",
+   "ticker": "MSFT"
+  },
+  {
+   "name": "Google",
+   "aliases": [
+    "Google",
+    "Alphabet",
+    "Sundar Pichai"
+   ],
+   "domain": "google.com",
+   "github": "google",
+   "wikipedia": "Google",
+   "ticker": "GOOGL"
+  },
+  {
+   "name": "Amazon",
+   "aliases": [
+    "Amazon",
+    "AWS",
+    "Andy Jassy"
+   ],
+   "domain": "amazon.com",
+   "github": "aws",
+   "wikipedia": "Amazon_(company)",
+   "ticker": "AMZN"
+  },
+  {
+   "name": "Meta",
+   "aliases": [
+    "Meta Platforms",
+    "Meta's",
+    "Facebook",
+    "Instagram",
+    "WhatsApp",
+    "Mark Zuckerberg",
+    "Zuckerberg"
+   ],
+   "domain": "meta.com",
+   "github": "facebook",
+   "wikipedia": "Meta_Platforms",
+   "ticker": "META"
+  },
+  {
+   "name": "Nvidia",
+   "aliases": [
+    "Nvidia",
+    "NVIDIA",
+    "Jensen Huang"
+   ],
+   "domain": "nvidia.com",
+   "github": "NVIDIA",
+   "wikipedia": "Nvidia",
+   "ticker": "NVDA"
+  },
+  {
+   "name": "Tesla",
+   "aliases": [
+    "Tesla",
+    "Elon Musk"
+   ],
+   "domain": "tesla.com",
+   "github": "teslamotors",
+   "wikipedia": "Tesla,_Inc.",
+   "ticker": "TSLA"
+  },
+  {
+   "name": "OpenAI",
+   "aliases": [
+    "OpenAI",
+    "ChatGPT",
+    "Sam Altman"
+   ],
+   "domain": "openai.com",
+   "github": "openai",
+   "wikipedia": "OpenAI"
+  },
+  {
+   "name": "Anthropic",
+   "aliases": [
+    "Anthropic",
+    "Dario Amodei"
+   ],
+   "domain": "anthropic.com",
+   "github": "anthropics",
+   "wikipedia": "Anthropic"
+  },
+  {
+   "name": "xAI",
+   "aliases": [
+    "xAI",
+    "Grok"
+   ],
+   "domain": "x.ai",
+   "github": "xai-org",
+   "wikipedia": "SpaceXAI"
+  },
+  {
+   "name": "Mistral AI",
+   "aliases": [
+    "Mistral AI",
+    "Mistral"
+   ],
+   "domain": "mistral.ai",
+   "github": "mistralai",
+   "wikipedia": "Mistral_AI"
+  },
+  {
+   "name": "Perplexity",
+   "aliases": [
+    "Perplexity"
+   ],
+   "domain": "perplexity.ai",
+   "wikipedia": "Perplexity_AI"
+  },
+  {
+   "name": "Netflix",
+   "aliases": [
+    "Netflix"
+   ],
+   "domain": "netflix.com",
+   "github": "Netflix",
+   "wikipedia": "Netflix",
+   "ticker": "NFLX"
+  },
+  {
+   "name": "Spotify",
+   "aliases": [
+    "Spotify"
+   ],
+   "domain": "spotify.com",
+   "github": "spotify",
+   "wikipedia": "Spotify",
+   "ticker": "SPOT"
+  },
+  {
+   "name": "Atlassian",
+   "aliases": [
+    "Atlassian",
+    "Jira"
+   ],
+   "domain": "atlassian.com",
+   "github": "atlassian",
+   "wikipedia": "Atlassian",
+   "ticker": "TEAM"
+  },
+  {
+   "name": "Canva",
+   "aliases": [
+    "Canva"
+   ],
+   "domain": "canva.com",
+   "github": "canva",
+   "wikipedia": "Canva"
+  },
+  {
+   "name": "Shopify",
+   "aliases": [
+    "Shopify"
+   ],
+   "domain": "shopify.com",
+   "github": "Shopify",
+   "wikipedia": "Shopify",
+   "ticker": "SHOP"
+  },
+  {
+   "name": "Stripe",
+   "aliases": [
+    "Stripe"
+   ],
+   "domain": "stripe.com",
+   "github": "stripe",
+   "wikipedia": "Stripe,_LLC"
+  },
+  {
+   "name": "Airbnb",
+   "aliases": [
+    "Airbnb"
+   ],
+   "domain": "airbnb.com",
+   "github": "airbnb",
+   "wikipedia": "Airbnb",
+   "ticker": "ABNB"
+  },
+  {
+   "name": "Uber",
+   "aliases": [
+    "Uber"
+   ],
+   "domain": "uber.com",
+   "github": "uber",
+   "wikipedia": "Uber",
+   "ticker": "UBER"
+  },
+  {
+   "name": "Samsung",
+   "aliases": [
+    "Samsung"
+   ],
+   "domain": "samsung.com",
+   "github": "samsung",
+   "wikipedia": "Samsung_Electronics"
+  },
+  {
+   "name": "Intel",
+   "aliases": [
+    "Intel"
+   ],
+   "domain": "intel.com",
+   "github": "intel",
+   "wikipedia": "Intel",
+   "ticker": "INTC"
+  },
+  {
+   "name": "AMD",
+   "aliases": [
+    "AMD",
+    "Lisa Su"
+   ],
+   "domain": "amd.com",
+   "wikipedia": "AMD",
+   "ticker": "AMD"
+  },
+  {
+   "name": "TSMC",
+   "aliases": [
+    "TSMC"
+   ],
+   "domain": "tsmc.com",
+   "wikipedia": "TSMC",
+   "ticker": "TSM"
+  },
+  {
+   "name": "Arm",
+   "aliases": [
+    "Arm Holdings",
+    "Arm's"
+   ],
+   "domain": "arm.com",
+   "github": "ARM-software",
+   "wikipedia": "Arm_Holdings",
+   "ticker": "ARM"
+  },
+  {
+   "name": "Palantir",
+   "aliases": [
+    "Palantir"
+   ],
+   "domain": "palantir.com",
+   "github": "palantir",
+   "wikipedia": "Palantir",
+   "ticker": "PLTR"
+  },
+  {
+   "name": "Coinbase",
+   "aliases": [
+    "Coinbase"
+   ],
+   "domain": "coinbase.com",
+   "github": "coinbase",
+   "wikipedia": "Coinbase",
+   "ticker": "COIN"
+  },
+  {
+   "name": "Salesforce",
+   "aliases": [
+    "Salesforce"
+   ],
+   "domain": "salesforce.com",
+   "github": "salesforce",
+   "wikipedia": "Salesforce",
+   "ticker": "CRM"
+  },
+  {
+   "name": "Oracle",
+   "aliases": [
+    "Oracle",
+    "Larry Ellison"
+   ],
+   "domain": "oracle.com",
+   "github": "oracle",
+   "wikipedia": "Oracle_Corporation",
+   "ticker": "ORCL"
+  },
+  {
+   "name": "IBM",
+   "aliases": [
+    "IBM"
+   ],
+   "domain": "ibm.com",
+   "github": "IBM",
+   "wikipedia": "IBM",
+   "ticker": "IBM"
+  },
+  {
+   "name": "Adobe",
+   "aliases": [
+    "Adobe"
+   ],
+   "domain": "adobe.com",
+   "github": "adobe",
+   "wikipedia": "Adobe_Inc.",
+   "ticker": "ADBE"
+  },
+  {
+   "name": "Figma",
+   "aliases": [
+    "Figma"
+   ],
+   "domain": "figma.com",
+   "github": "figma",
+   "wikipedia": "Figma",
+   "ticker": "FIG"
+  },
+  {
+   "name": "Notion",
+   "aliases": [
+    "Notion AI",
+    "Notion Labs",
+    "Notion's"
+   ],
+   "domain": "notion.so",
+   "github": "makenotion",
+   "wikipedia": "Notion_(productivity_software)"
+  },
+  {
+   "name": "Vercel",
+   "aliases": [
+    "Vercel",
+    "Next.js"
+   ],
+   "domain": "vercel.com",
+   "github": "vercel",
+   "wikipedia": "Vercel"
+  },
+  {
+   "name": "Supabase",
+   "aliases": [
+    "Supabase"
+   ],
+   "domain": "supabase.com",
+   "github": "supabase"
+  },
+  {
+   "name": "Cloudflare",
+   "aliases": [
+    "Cloudflare"
+   ],
+   "domain": "cloudflare.com",
+   "github": "cloudflare",
+   "wikipedia": "Cloudflare",
+   "ticker": "NET"
+  },
+  {
+   "name": "GitHub",
+   "aliases": [
+    "GitHub"
+   ],
+   "domain": "github.com",
+   "github": "github",
+   "wikipedia": "GitHub"
+  },
+  {
+   "name": "Hugging Face",
+   "aliases": [
+    "Hugging Face",
+    "HuggingFace"
+   ],
+   "domain": "huggingface.co",
+   "github": "huggingface",
+   "wikipedia": "Hugging_Face"
+  },
+  {
+   "name": "ByteDance",
+   "aliases": [
+    "ByteDance",
+    "TikTok"
+   ],
+   "domain": "bytedance.com",
+   "github": "bytedance",
+   "wikipedia": "ByteDance"
+  },
+  {
+   "name": "Snap",
+   "aliases": [
+    "Snap Inc",
+    "Snapchat"
+   ],
+   "domain": "snap.com",
+   "github": "Snapchat",
+   "wikipedia": "Snap_Inc.",
+   "ticker": "SNAP"
+  },
+  {
+   "name": "Reddit",
+   "aliases": [
+    "Reddit"
+   ],
+   "domain": "reddit.com",
+   "github": "reddit",
+   "wikipedia": "Reddit",
+   "ticker": "RDDT"
+  },
+  {
+   "name": "Pinterest",
+   "aliases": [
+    "Pinterest"
+   ],
+   "domain": "pinterest.com",
+   "github": "pinterest",
+   "wikipedia": "Pinterest",
+   "ticker": "PINS"
+  },
+  {
+   "name": "Block",
+   "aliases": [
+    "Block Inc",
+    "Block, Inc",
+    "Square",
+    "Cash App",
+    "Afterpay",
+    "Jack Dorsey"
+   ],
+   "domain": "block.xyz",
+   "github": "block",
+   "wikipedia": "Block,_Inc.",
+   "ticker": "XYZ"
+  },
+  {
+   "name": "Xero",
+   "aliases": [
+    "Xero"
+   ],
+   "domain": "xero.com",
+   "github": "XeroAPI",
+   "wikipedia": "Xero",
+   "ticker": "XRO.AX"
+  },
+  {
+   "name": "Rivian",
+   "aliases": [
+    "Rivian"
+   ],
+   "domain": "rivian.com",
+   "wikipedia": "Rivian",
+   "ticker": "RIVN"
+  },
+  {
+   "name": "SpaceX",
+   "aliases": [
+    "SpaceX",
+    "Starlink"
+   ],
+   "domain": "spacex.com",
+   "wikipedia": "SpaceX"
+  },
+  {
+   "name": "Qualcomm",
+   "aliases": [
+    "Qualcomm"
+   ],
+   "domain": "qualcomm.com",
+   "github": "qualcomm",
+   "wikipedia": "Qualcomm",
+   "ticker": "QCOM"
+  },
+  {
+   "name": "Broadcom",
+   "aliases": [
+    "Broadcom"
+   ],
+   "domain": "broadcom.com",
+   "wikipedia": "Broadcom",
+   "ticker": "AVGO"
+  },
+  {
+   "name": "Micron",
+   "aliases": [
+    "Micron"
+   ],
+   "domain": "micron.com",
+   "wikipedia": "Micron_Technology",
+   "ticker": "MU"
+  }
+ ]
+}

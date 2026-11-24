@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 from urllib.parse import quote
 
+from .. import watchlist
 from ..entities import alias_key
 from .base import Collector
 
@@ -28,6 +29,7 @@ class GitHub(Collector):
         since = (datetime.now(timezone.utc) - timedelta(days=p.get("created_within_days", 30))).date()
         q = quote(f"created:>{since} stars:>={p.get('min_stars', 10)}")
         found: dict[str, tuple] = {}
+        self.remaining = 100  # core API requests left; updated from response headers
         for page in range(1, p.get("search_pages", 2) + 1):
             data, hdrs = self.request(
                 f"{API}/search/repositories?q={q}&sort=stars&order=desc&per_page=100&page={page}",
@@ -36,6 +38,21 @@ class GitHub(Collector):
                 found[repo["full_name"].lower()] = to_result(repo)
             if int(hdrs.get("X-RateLimit-Remaining", 1)) == 0:
                 break  # search allows 30/min; next run picks up the rest
+
+        for org in watchlist.values(self.conn, "github_orgs"):  # company orgs, added by scorer.companies
+            if self.remaining < p.get("reserve_requests", 50):
+                self.log.warning("rate limit nearly used up; skipping the rest of the org repos")
+                break
+            try:
+                repos, hdrs = self.request(f"{API}/orgs/{org}/repos?sort=pushed&per_page={p.get('org_repos', 10)}",
+                                           self.headers())
+            except HTTPError as e:
+                if e.code == 404:
+                    continue
+                raise
+            self.remaining = int(hdrs.get("X-RateLimit-Remaining", 100))
+            for repo in repos:
+                found.setdefault(repo["full_name"].lower(), to_result(repo))
 
         for name in self.tracked(p.get("max_tracked", 300)):
             if name in found:

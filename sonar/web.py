@@ -196,7 +196,7 @@ def layout(title: str, body: str, tab: str = "", tabs=(), meta: str = "", nav: b
             f'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
             f'<meta name="color-scheme" content="light dark"><title>{escape(title)} · Sonar</title>'
             f'<link rel="icon" href="/favicon.svg"><style>{CSS}</style></head><body>{head}'
-            f'<main>{body}</main><footer>Sonar v{VERSION} · information only, not financial advice</footer></body></html>')
+            f'<main>{body}</main><footer>Sonar v{VERSION} · Attention signals only, not financial advice.</footer></body></html>')
 
 
 class Site:
@@ -258,9 +258,14 @@ class Site:
                         also.setdefault(k, set()).add(s)
         for r in rows:
             r["sources"] = sorted({r["source"]}.union(*(also.get(k, set()) for k in (r["entity_key"], r["alias_key"]) if k)))
+            r["signals"] = json.loads(r["meta_json"] or "{}").get("signals")  # companies: heat per signal
             m = self.metric.get(r["source"])
-            pts = conn.execute("SELECT ts, value FROM snapshots WHERE item_id=? AND metric=? AND ts>=? ORDER BY ts",
-                               (r["id"], m, now - 7 * DAY)).fetchall() if m else []
+            if r["signals"] is not None:  # companies have no single metric: chart their score
+                pts = conn.execute("SELECT ts, score FROM scores WHERE item_id=? AND ts>=? ORDER BY ts",
+                                   (r["id"], now - 7 * DAY)).fetchall()
+            else:
+                pts = conn.execute("SELECT ts, value FROM snapshots WHERE item_id=? AND metric=? AND ts>=? ORDER BY ts",
+                                   (r["id"], m, now - 7 * DAY)).fetchall() if m else []
             r["spark"] = thin([tuple(p) for p in pts], 42)
         return rows, latest
 
@@ -271,8 +276,11 @@ class Site:
         out = []
         for r in rows:
             why = json.loads(r["reasons_json"])[0]
-            chips = "".join(f'<span class="chip src">{escape(s)}</span>' for s in r["sources"])
-            if r["category"]:
+            if r.get("signals") is not None:  # a company: where the attention is coming from
+                chips = "".join(f'<span class="chip src">{escape(k)} {h:.1f}×</span>' for k, h in r["signals"].items())
+            else:
+                chips = "".join(f'<span class="chip src">{escape(s)}</span>' for s in r["sources"])
+            if r["category"] and r["category"] != "company":
                 chips += f'<span class="chip">{escape(r["category"])}</span>'
             out.append(
                 f'<li class="row"><div class="score">{r["score"]:.0f}<small>{r["heat"]:.1f}×</small></div>'
@@ -293,6 +301,9 @@ class Site:
         else:
             srcs, neg = self.sources_for(tab)
             sub = "Every source not in another tab" if neg else "Sources: " + ", ".join(srcs)
+            if "companies" in srcs and not neg:
+                sub = "Combined company heat from news, Hacker News, Reddit, Wikipedia, launches and GitHub. " \
+                      "Attention signals only, not financial advice"
         body = f"<h1>{escape(title)}</h1><p class='sub'>{escape(sub)} · score 0–100, × = heat</p>{self.list_html(rows)}"
         return self.layout(title, body, tab or "Top", self.tabs, self.meta(latest, now))
 

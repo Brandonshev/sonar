@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 
-from .. import db
+from .. import db, watchlist
 from ..entities import alias_key, words
 from .base import Collector
 
@@ -49,6 +49,7 @@ class Wikipedia(Collector):
         top = self.top_articles(p.get("top", 100))
         linked = self.link_known_names(now, p.get("lookups_per_run", 25))
         tracked = self.tracked(now, p.get("track_days", 14), p.get("max_tracked", 300))
+        tracked += watchlist.values(self.conn, "wikipedia")  # e.g. company articles, added by scorer.companies
 
         articles: dict[str, dict] = {}
         for title in tracked:

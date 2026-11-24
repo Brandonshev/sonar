@@ -88,11 +88,11 @@ def run_all_due(conn, data: dict, now: int | None = None, modules: dict | None =
     now = now or int(time.time())
     last = db.last_runs(conn)
     ran: set[str] = set()
-    for kind in ORDER:  # one pass per stage, so edge-triggered nodes see this pass's upstream runs
-        for node in due_nodes(data, last, now, ran):
-            if node["type"].startswith(kind + ".") and node["id"] not in ran:
-                run_node(conn, node, (modules or {}).get(node["id"]), now)
-                ran.add(node["id"])
+    for kind in ORDER:  # stage by stage; re-check after each run so a scorer can trigger another scorer
+        while node := next((n for n in due_nodes(data, last, now, ran)
+                            if n["type"].startswith(kind + ".") and n["id"] not in ran), None):
+            run_node(conn, node, (modules or {}).get(node["id"]), now)
+            ran.add(node["id"])
     return ran
 
 

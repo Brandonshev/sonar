@@ -78,7 +78,7 @@ footer {{ margin-top:40px; color:var(--muted); font-size:12px; }}
 <h2>New entries</h2>{table(d['new'])}
 {sections}
 <h2>Sources that broke</h2>{f'<ul>{broken}</ul>' if broken else '<p class=muted>All sources healthy.</p>'}
-<footer>Sonar v{VERSION} · information only, not financial advice</footer>
+<footer>Sonar v{VERSION} · Attention signals only, not financial advice.</footer>
 </body></html>"""
 
 

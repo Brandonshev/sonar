@@ -23,6 +23,7 @@ def prune(conn, now: int, keep_days: int = 90) -> int:
                  SELECT MAX(rowid) FROM snapshots WHERE ts < ? GROUP BY item_id, metric, ts / 86400)""",
             (cutoff, cutoff)).rowcount
         conn.execute("DELETE FROM scores WHERE ts < ?", (cutoff,))
+        conn.execute("DELETE FROM news_seen WHERE ts < ?", (now - 30 * DAY,))
     return n
 
 
