@@ -91,7 +91,8 @@ def email_text(d: dict, now: int, tz: str, page: str | None) -> tuple[str, str]:
     """(subject, plain-text body) for the email version: short, personal and with one link, to your
     own dashboard. Gmail treats bulk-looking mail (lots of outside links, scores, HTML tables) as spam."""
     when = datetime.fromtimestamp(now, ZoneInfo(tz))
-    leaders = sorted((r for rows in d["top"].values() for r in rows), key=lambda r: -r["score"])[:3]
+    # The best item from each of the three strongest sources, so one busy source can't fill the email.
+    leaders = sorted((rows[0] for rows in d["top"].values() if rows), key=lambda r: -r["score"])[:3]
     lines = ["Morning,", ""]
     if leaders:
         lines.append("Here's what picked up fastest in the last day:")
