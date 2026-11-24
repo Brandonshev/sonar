@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 from zoneinfo import ZoneInfo
 
 from . import ROOT, VERSION, db, health, load_env, pipeline, setup_logging
+from .outputs import lookout_feed
 
 log = logging.getLogger("sonar.web")
 DAY = 86400
@@ -384,9 +385,24 @@ class Site:
 
 # ---------- HTTP ----------
 
+class RateLimit:
+    """At most `per_minute` requests per IP in any rolling minute."""
+    def __init__(self):
+        self.hits, self.lock = {}, threading.Lock()
+
+    def allow(self, ip, now, per_minute) -> bool:
+        with self.lock:
+            self.hits[ip] = [t for t in self.hits.get(ip, []) if now - t < 60]
+            if len(self.hits[ip]) >= per_minute:
+                return False
+            self.hits[ip].append(now)
+            return True
+
+
 class Handler(BaseHTTPRequestHandler):
     site: Site
     throttle = Throttle()
+    api_limit = RateLimit()
     server_version = "Sonar"
     sys_version = ""
 
@@ -451,6 +467,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, LOGO.replace("currentColor", "#3ee0a1"), "image/svg+xml")
         if path == "/login":
             return self.send(200, self.site.page_login())
+        if path == "/api/trends":
+            return self.api_trends(now)
         if path == "/logout":
             return self.redirect("/login", {"Set-Cookie": "sonar_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax"})
         if not self.authed(now):
@@ -478,6 +496,42 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             log.exception("error rendering %s", path)
             self.send(500, layout("Error", "<h1>Something broke</h1><p class='sub'>It's in the log.</p>", "", self.site.tabs))
+
+    def api_trends(self, now: int):
+        """GET /api/trends for Lookout: bearer token, rate limit, every read logged. See API.md."""
+        node = next((n for n in self.site.data["nodes"] if n["type"] == "output.lookout_feed" and n["enabled"]), None)
+        token = os.environ.get("LOOKOUT_TOKEN", "")
+        if not node or not token:
+            return self.json(404, {"error": "feed not enabled"})
+        given = self.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        ip = self.client_ip()
+        if not hmac.compare_digest(given, token):
+            log.warning("api/trends: bad token from %s", ip)
+            return self.json(401, {"error": "bad or missing token"})
+        p = node.get("params", {})
+        if not self.api_limit.allow(ip, now, p.get("rate_limit_per_minute", 10)):
+            return self.json(429, {"error": "rate limited"}, {"Retry-After": "60"})
+        q = parse_qs(urlsplit(self.path).query)
+        try:
+            category = q.get("category", [None])[0]
+            min_score = float(q["min_score"][0]) if "min_score" in q else None
+            since, after_id = int(q.get("since", ["0"])[0]), int(q.get("after_id", ["0"])[0])
+            limit = min(int(q.get("limit", ["100"])[0]), p.get("max_results", 200))
+        except ValueError:
+            return self.json(400, {"error": "min_score, since, after_id and limit must be numbers"})
+        allowed = p.get("categories", lookout_feed.DEFAULTS["categories"])
+        if category and category not in allowed:
+            return self.json(400, {"error": f"category must be one of {allowed}"})
+        with closing(db.connect(self.site.db_path)) as conn:
+            events = lookout_feed.read(conn, node, category, min_score, since, max(1, limit), after_id)
+        log.info("api/trends read by %s: category=%s min_score=%s since=%s after_id=%s -> %d events",
+                 ip, category, min_score, since, after_id, len(events))
+        return self.json(200, {"sonar_version": VERSION, "count": len(events),
+                               "next_since": events[-1]["ts"] if events else since,
+                               "next_after_id": events[-1]["id"] if events else after_id, "events": events})
+
+    def json(self, code: int, body: dict, headers=None):
+        self.send(code, json.dumps(body), "application/json", headers)
 
     def do_POST(self):
         if self.insecure():

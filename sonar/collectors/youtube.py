@@ -115,8 +115,8 @@ def to_result(v: dict, tags: set):
         "external_id": v["id"],
         "title": s.get("title"),
         "url": f"https://www.youtube.com/watch?v={v['id']}",
-        "category": s.get("channelTitle") or "YouTube",
-        "meta": {"channel_id": s.get("channelId"), "published": s.get("publishedAt"), "seen_in": sorted(tags)},
+        "category": "social.video",  # video trends; Lookout reads this category
+        "meta": {"channel": s.get("channelTitle"), "channel_id": s.get("channelId"), "published": s.get("publishedAt"), "seen_in": sorted(tags)},
     }
     return item, {"views": int(st.get("viewCount", 0)), "likes": int(st.get("likeCount", 0)),
                   "comments": int(st.get("commentCount", 0))}
