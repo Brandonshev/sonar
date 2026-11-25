@@ -410,9 +410,9 @@ class Site:
             ("YouTube channels", st["watching"].get("youtube", 0)), ("Sonar video trends", st["sonar_trends"]),
             ("waiting for you", counts.get("pinged", 0)), ("posting", posting)])
         trends = "".join(
-            f'<li class="row"><div class="score">{_x(t["best_outlier"])}<small>× best</small></div><div>'
+            f'<li class="row"><div class="score">{t.get("best_score", "–")}<small>best</small></div><div>'
             f'<div class="t">{escape(t["fmt"])}</div><div class="why">outlier on {len(t["accounts"])} accounts this week, '
-            f'{t["posts"]} posts</div></div><div class="hide-sm"></div></li>' for t in st["trends"]) or \
+            f'{t["posts"]} posts, best {_x(t["best_outlier"])}× its channel</div></div><div class="hide-sm"></div></li>' for t in st["trends"]) or \
             "<li class='empty-state'>No format is an outlier on 3+ accounts this week.</li>"
         jobs = ""
         for j in st["jobs"]:
@@ -428,15 +428,16 @@ class Site:
                      f'<div class="why">{escape(j["outline"] or "")}</div>{acts}</div>')
         jobs = jobs or "<p class='empty-state'>No story briefs yet.</p>"
         outl = "".join(
-            f'<li class="row"><div class="score">{_x(o["outlier"])}<small>×</small></div><div>'
-            f'<div class="t"><a href="{escape(o["url"])}" target="_blank" rel="noreferrer">{escape((o["caption"] or o["url"])[:110])}</a></div>'
+            f'<li class="row"><div class="score">{o.get("score", "–")}<small>/ 100</small></div><div>'
+            f'<div class="t"><a href="{escape(o["url"])}" target="_blank" rel="noreferrer">{escape(o.get("title") or o["caption"] or o["url"])}</a></div>'
             f'<div class="chips"><span class="chip src">{escape(o["platform"])}</span><span class="chip">{escape(o["account"])}</span>'
+            f'<span class="chip">{_x(o["outlier"])}× its channel</span>'
             f'{"<span class=chip>" + escape(o["fmt"]) + "</span>" if o["fmt"] else ""}<span class="chip">{num(o["views"] or 0)} views</span>'
             f'<span class="chip">{ago(o["posted_at"], now)}</span></div></div><div class="hide-sm"></div></li>' for o in st["outliers"])
         meta = f"ticked {ago(tick['at'], now)}" if tick.get("at") else "not run yet"
         note = f'<p class="warn">{escape(note)}</p>' if note else ""
         body = (f"<h1>Lookout</h1><p class='sub'>Short-video formats worth copying. A separate program on this server, "
-                f"v{escape(st['version'])}. Outlier = views ÷ that channel's normal.</p>{note}<div class='stats'>{stats}</div>"
+                f"v{escape(st['version'])}. Score 0–100: how far a video beat its channel's normal (300× = full marks) and its reach (10M views). 100 is a perfect video.</p>{note}<div class='stats'>{stats}</div>"
                 f"<h2>Trends</h2><ul class='list'>{trends}</ul><h2>Story briefs</h2>{jobs}"
                 f"<h2>Top outliers</h2><ul class='list'>{outl or '<li class=empty-state>None yet.</li>'}</ul>")
         return self.layout("Lookout", body, "Lookout", self.tabs, meta)
