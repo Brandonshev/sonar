@@ -120,6 +120,7 @@ ops/                systemd units, Oracle ARM server helper
 | Version | What changed |
 |---|---|
 | **1.0.0** | Radar app icon (favicon, home-screen and PWA icons, ntfy icon), web manifest, audit fixes: alert warm-up can't be fooled by backfilled history, scores kept 14 days |
+| 1.1.0 | Lookout tab on the dashboard: trends, story briefs with Approve/Veto, top outliers. Reads Lookout's local API (127.0.0.1:8396, same LOOKOUT_TOKEN) |
 | 0.10.0 | Lookout feed: `output.lookout_feed` and a token-protected, rate-limited `GET /api/trends`; API.md |
 | 0.9.0 | News mentions per company; company heat roll-up and Companies tab |
 | 0.8.0 | TikTok hashtags; Instagram via Instaloader (off by default); pacing with jitter, auto-disable after 3 failures, cross-platform hashtag watchlists |

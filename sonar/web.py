@@ -19,6 +19,7 @@ import secrets
 import sys
 import threading
 import time
+import urllib.request
 from datetime import datetime
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -177,6 +178,10 @@ td,th{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 .login{max-width:340px;margin:12vh auto;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:16px}
 .login input{width:100%;font-size:16px;padding:11px 12px;margin:12px 0;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
 .login .btn{width:100%}.bad{color:var(--hot);font-size:14px}
+.job{padding:12px 2px;border-bottom:1px solid var(--line)}.job form{display:inline}
+.job .acts{margin-top:8px;display:flex;gap:6px}.btn.sm{padding:6px 12px;font-size:13px}.btn.ghost{background:var(--chip);color:var(--fg)}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 8px}.stat{padding:8px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--muted)}
+.stat b{display:block;color:var(--fg);font-size:18px}
 footer{max-width:920px;margin:24px auto 40px;padding:0 16px;color:var(--muted);font-size:12px}
 @media (max-width:560px){.row{grid-template-columns:44px 1fr}.row svg.spark{grid-column:2;width:100%;height:28px}.score{font-size:19px}
 .hide-sm{display:none}}
@@ -190,7 +195,8 @@ LOGO = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden=
 
 
 def layout(title: str, body: str, tab: str = "", tabs=(), meta: str = "", nav: bool = True) -> str:
-    items = [("Top", "/")] + [(t, f"/tab/{quote(t)}") for t in tabs] + [("Digests", "/digests"), ("Health", "/health")]
+    items = [("Top", "/")] + [(t, f"/tab/{quote(t)}") for t in tabs] + [("Lookout", "/lookout"), ("Digests", "/digests"),
+                                                                       ("Health", "/health")]
     navhtml = "".join(f'<a href="{u}" class="{"on" if n == tab else ""}">{escape(n)}</a>' for n, u in items)
     head = (f'<header><div class="bar"><a class="brand" href="/">{LOGO}Sonar</a>'
             f'<span class="meta">{meta}</span></div><nav>{navhtml}</nav></header>') if nav else ""
@@ -379,6 +385,62 @@ class Site:
                 f"<table><tr><th>Node</th><th>Status</th><th>Last OK</th><th class='hide-sm'>Items</th><th>Last error</th></tr>{trs}</table>")
         return self.layout("Health", body, "Health", self.tabs)
 
+    # Lookout (a separate program on this server) -------------------------------------------
+    def lookout_call(self, path, body=None):
+        """Talk to Lookout's local API (127.0.0.1 only). Uses the same LOOKOUT_TOKEN as /api/trends."""
+        url = os.environ.get("LOOKOUT_API_URL", "http://127.0.0.1:8396") + path
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method="POST" if data else "GET", headers={
+            "Authorization": f"Bearer {os.environ.get('LOOKOUT_TOKEN', '')}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return json.loads(r.read())
+
+    def page_lookout(self, now, note=""):
+        try:
+            st = self.lookout_call("/state")
+        except Exception as e:
+            body = (f"<h1>Lookout</h1><p class='empty-state'>Lookout isn't answering ({escape(type(e).__name__)}). "
+                    "Check <code>systemctl status lookout-api</code> on the server.</p>")
+            return self.layout("Lookout", body, "Lookout", self.tabs)
+        tick = st.get("last_tick") or {}
+        counts = st.get("counts", {})
+        posting = ", ".join(st.get("platforms_on") or []) or "off"
+        stats = "".join(f'<div class="stat"><b>{escape(str(v))}</b>{escape(k)}</div>' for k, v in [
+            ("trends", len(st["trends"])), ("outliers (14 days)", len(st["outliers"])),
+            ("YouTube channels", st["watching"].get("youtube", 0)), ("Sonar video trends", st["sonar_trends"]),
+            ("waiting for you", counts.get("pinged", 0)), ("posting", posting)])
+        trends = "".join(
+            f'<li class="row"><div class="score">{_x(t["best_outlier"])}<small>× best</small></div><div>'
+            f'<div class="t">{escape(t["fmt"])}</div><div class="why">outlier on {len(t["accounts"])} accounts this week, '
+            f'{t["posts"]} posts</div></div><div class="hide-sm"></div></li>' for t in st["trends"]) or \
+            "<li class='empty-state'>No format is an outlier on 3+ accounts this week.</li>"
+        jobs = ""
+        for j in st["jobs"]:
+            acts = ""
+            if j["status"] == "pinged":
+                acts = (f'<div class="acts"><form method="post" action="/lookout/command"><input type="hidden" name="cmd" '
+                        f'value="approve {escape(j["id"])}"><button class="btn sm">Approve</button></form>'
+                        f'<form method="post" action="/lookout/command"><input type="hidden" name="cmd" '
+                        f'value="veto {escape(j["id"])}"><button class="btn sm ghost">Veto</button></form></div>')
+            jobs += (f'<div class="job"><div class="t">{escape(j["premise"] or j["id"])}</div>'
+                     f'<div class="why">{escape(j["fmt"])} · {escape(j["status"])}'
+                     f'{" · needs your sign-off" if j["needs_signoff"] and j["status"] == "pinged" else ""}</div>'
+                     f'<div class="why">{escape(j["outline"] or "")}</div>{acts}</div>')
+        jobs = jobs or "<p class='empty-state'>No story briefs yet.</p>"
+        outl = "".join(
+            f'<li class="row"><div class="score">{_x(o["outlier"])}<small>×</small></div><div>'
+            f'<div class="t"><a href="{escape(o["url"])}" target="_blank" rel="noreferrer">{escape((o["caption"] or o["url"])[:110])}</a></div>'
+            f'<div class="chips"><span class="chip src">{escape(o["platform"])}</span><span class="chip">{escape(o["account"])}</span>'
+            f'{"<span class=chip>" + escape(o["fmt"]) + "</span>" if o["fmt"] else ""}<span class="chip">{num(o["views"] or 0)} views</span>'
+            f'<span class="chip">{ago(o["posted_at"], now)}</span></div></div><div class="hide-sm"></div></li>' for o in st["outliers"])
+        meta = f"ticked {ago(tick['at'], now)}" if tick.get("at") else "not run yet"
+        note = f'<p class="warn">{escape(note)}</p>' if note else ""
+        body = (f"<h1>Lookout</h1><p class='sub'>Short-video formats worth copying. A separate program on this server, "
+                f"v{escape(st['version'])}. Outlier = views ÷ that channel's normal.</p>{note}<div class='stats'>{stats}</div>"
+                f"<h2>Trends</h2><ul class='list'>{trends}</ul><h2>Story briefs</h2>{jobs}"
+                f"<h2>Top outliers</h2><ul class='list'>{outl or '<li class=empty-state>None yet.</li>'}</ul>")
+        return self.layout("Lookout", body, "Lookout", self.tabs, meta)
+
     def page_login(self, error=""):
         bad = f'<p class="bad">{escape(error)}</p>' if error else ""
         body = (f'<form class="login" method="post" action="/login"><div class="brand">{LOGO}Sonar</div>{bad}'
@@ -504,6 +566,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(200, page)
             if path == "/health":
                 return self.send(200, self.site.page_health(now))
+            if path == "/lookout":
+                return self.send(200, self.site.page_lookout(now))
             self.send(404, layout("Not found", "<h1>Not found</h1>", "", self.site.tabs))
         except Exception:
             log.exception("error rendering %s", path)
@@ -542,6 +606,23 @@ class Handler(BaseHTTPRequestHandler):
                                "next_since": events[-1]["ts"] if events else since,
                                "next_after_id": events[-1]["id"] if events else after_id, "events": events})
 
+    def lookout_command(self, now: int):
+        if not self.authed(now):
+            return self.redirect("/login")
+        if not _same_origin(self):
+            return self.send(403, "")
+        length = min(int(self.headers.get("Content-Length") or 0), 1024)
+        cmd = parse_qs(self.rfile.read(length).decode(errors="replace")).get("cmd", [""])[0]
+        if not re.fullmatch(r"(approve|veto) [\w.:-]{1,80}", cmd):
+            return self.send(400, "")
+        try:
+            result = self.site.lookout_call("/command", {"cmd": cmd})["result"]
+        except Exception:
+            log.exception("lookout command failed")
+            result = "failed: Lookout isn't answering"
+        log.info("lookout command %r from %s -> %s", cmd, self.client_ip(), result)
+        self.send(200, self.site.page_lookout(now, f"{cmd.split()[0].capitalize()}: {result}"))
+
     def json(self, code: int, body: dict, headers=None):
         self.send(code, json.dumps(body), "application/json", headers)
 
@@ -549,6 +630,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.insecure():
             return
         now = int(time.time())
+        if urlsplit(self.path).path == "/lookout/command":
+            return self.lookout_command(now)
         if urlsplit(self.path).path != "/login":
             return self.send(404, "")
         ip = self.client_ip()
@@ -566,6 +649,18 @@ class Handler(BaseHTTPRequestHandler):
         secure = "; Secure" if os.environ.get("SONAR_PUBLIC_URL", "").startswith("https://") else ""
         self.redirect("/", {"Set-Cookie": f"sonar_session={make_session(secret, now)}; Max-Age={SESSION_DAYS * DAY}; "
                                           f"Path=/; HttpOnly; SameSite=Lax{secure}"})
+
+
+def _x(v) -> str:
+    """295.07 -> '295', 42.53 -> '42.5', 6.0 -> '6' (so big multiples fit the score column)."""
+    return f"{v:.0f}" if v >= 100 else f"{v:.1f}".rstrip("0").rstrip(".")
+
+
+def _same_origin(handler) -> bool:
+    """Approve/veto forms must come from this site (on top of the SameSite cookie)."""
+    origin = handler.headers.get("Origin") or handler.headers.get("Referer") or ""
+    host = handler.headers.get("X-Forwarded-Host") or handler.headers.get("Host") or ""
+    return bool(host) and urlsplit(origin).netloc == host
 
 
 def set_password(env_path: Path = ROOT / ".env") -> int:
