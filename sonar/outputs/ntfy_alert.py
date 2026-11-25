@@ -18,7 +18,7 @@ import logging
 import time
 
 from .. import db
-from .notify import public_url, quiet_until, send_ntfy
+from .notify import open_link, public_url, quiet_until, send_ntfy
 
 log = logging.getLogger("sonar.alerts")
 DEFAULTS = {"min_heat": 5, "min_score": 0, "cooldown_hours": 24, "rejump_score": 20,
@@ -84,10 +84,11 @@ def message(c: dict) -> tuple[str, str, str | None, list]:
     title = f"🔥 {c['title'] or 'Untitled'}"[:200]
     body = f"{c['source']} · {c['category'] or '-'} · score {c['score']:.0f} (heat {c['heat']:.1f})\n{reasons[0]}"
     page = public_url(f"item/{c['item_id']}")
-    actions = [{"action": "view", "label": "Open", "url": c["url"]}] if c["url"] else []
+    url = open_link(c["url"])
+    actions = [{"action": "view", "label": "Open", "url": url}] if url else []
     if page:
         actions.append({"action": "view", "label": "Sonar", "url": page})
-    return title, body, c["url"] or page, actions
+    return title, body, url or page, actions
 
 
 def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:

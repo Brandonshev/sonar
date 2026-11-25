@@ -13,7 +13,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .. import ROOT, VERSION
-from .notify import email_configured, public_url, send_email, send_ntfy
+from .notify import email_configured, open_link, public_url, send_email, send_ntfy
 
 log = logging.getLogger("sonar.digest")
 DAY = 86400
@@ -44,7 +44,7 @@ def gather(conn, now: int, p: dict) -> dict:
 def row(r: dict) -> str:
     why = escape(json.loads(r["reasons_json"])[0])
     title = escape(r["title"] or "Untitled")
-    link = f'<a href="{escape(r["url"])}">{title}</a>' if r["url"] else title
+    link = f'<a href="{escape(open_link(r["url"]))}">{title}</a>' if r["url"] else title
     return (f"<tr><td class=n>{r['score']:.0f}</td><td class=n>{r['heat']:.1f}</td>"
             f"<td>{link}<div class=why>{why}</div></td><td>{escape(r['category'] or '')}</td></tr>")
 

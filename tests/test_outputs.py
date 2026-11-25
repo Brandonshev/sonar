@@ -312,3 +312,14 @@ def test_hashtag_link_is_not_a_second_source():
     c.execute("INSERT INTO scores VALUES (?, ?, 4, 50, '[]')", (tag, syd(1)))
     c.commit()
     assert ntfy_alert.run(c, {"id": "alerts", "params": {"quiet_hours": QUIET}}, now=syd(1), send=lambda *a, **k: None) == 0
+
+
+@pytest.mark.parametrize("url,expect", [
+    ("https://github.com/openai/math/blob/main/preprints/x/paper.pdf",
+     "https://github.com/openai/math/raw/main/preprints/x/paper.pdf"),
+    ("https://github.com/a/b/blob/main/README.md", "https://github.com/a/b/blob/main/README.md"),
+    ("https://example.com/paper.pdf", "https://example.com/paper.pdf"),
+    (None, None)])
+def test_open_link_sends_github_pdfs_to_the_raw_file(url, expect):
+    from sonar.outputs.notify import open_link
+    assert open_link(url) == expect

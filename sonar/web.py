@@ -29,6 +29,7 @@ from zoneinfo import ZoneInfo
 
 from . import ROOT, VERSION, db, health, load_env, pipeline, setup_logging
 from .outputs import lookout_feed
+from .outputs.notify import open_link
 
 log = logging.getLogger("sonar.web")
 DAY = 86400
@@ -345,7 +346,7 @@ class Site:
                 + f'first seen {sydney(item["first_seen"])}</p>' + (f"<ul class='why'>{reasons}</ul>" if reasons else ""))
         srcs = "".join(
             f'<tr><td><a href="/item/{s["id"]}">{escape(s["source"])}</a></td><td>{escape(s["category"] or "")}</td>'
-            f'<td>' + (f'<a href="{escape(s["url"])}" rel="noreferrer" target="_blank">open ↗</a>' if s["url"] else "") + '</td></tr>'
+            f'<td>' + (f'<a href="{escape(open_link(s["url"]))}" rel="noreferrer" target="_blank">open ↗</a>' if s["url"] else "") + '</td></tr>'
             for s in same)
         alert_rows = "".join(f"<tr><td>{sydney(a['ts'])}</td><td>{escape(a['source'])}</td><td>{(a['score'] or 0):.0f}</td></tr>"
                              for a in alerts) or "<tr><td colspan=3 class='err'>No alerts sent for this item.</td></tr>"

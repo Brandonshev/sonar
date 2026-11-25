@@ -1,6 +1,7 @@
 """Shared senders: ntfy push and (optional) email. Settings come from .env."""
 import json
 import os
+import re
 import smtplib
 import time
 import urllib.request
@@ -37,6 +38,13 @@ def quiet_until(now: float, quiet: dict | None = None) -> int | None:
     if end_dt <= local:
         end_dt += timedelta(days=1)
     return int(end_dt.timestamp())
+
+
+def open_link(url: str | None) -> str | None:
+    """A link that opens on a phone. GitHub's file page can't show PDFs or images ("unable to render
+    code block"), so those go to the raw file."""
+    m = re.match(r"https://github\.com/([^/]+/[^/]+)/blob/(.+\.(?:pdf|png|jpe?g|gif|webp))(?:[?#].*)?$", url or "", re.I)
+    return f"https://github.com/{m[1]}/raw/{m[2]}" if m else url
 
 
 def public_url(path: str) -> str | None:
