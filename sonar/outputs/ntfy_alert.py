@@ -26,13 +26,19 @@ DEFAULTS = {"min_heat": 5, "min_score": 0, "cooldown_hours": 24, "rejump_score":
             "quiet_hours": None, "quiet_override": {"min_heat": 30, "min_sources": 2}}
 
 
+def same_title(title) -> str:
+    """Comparable form of a title, so re-uploads of one video count as one."""
+    return " ".join((title or "").lower().split())
+
+
 def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int, p: dict,
-         sent_today: dict | None = None) -> list[dict]:
+         sent_today: dict | None = None, seen_titles=None) -> list[dict]:
     """candidates: dicts with item_id, entity_key, source, heat, score (any order).
-    last_alert: item_id -> (ts, score) of its latest alert; sent_today: source -> alerts in the last 24h.
+    last_alert: item_id -> (ts, score) of its latest alert; sent_today: source -> alerts in the last 24h;
+    seen_titles: same_title() of everything alerted within the cooldown.
     Returns the ones to send. Ordered by heat, the real "how much faster than usual", so a source's
     ranking weight never hides a genuinely big spike."""
-    out, entities = [], set()
+    out, entities, titles = [], set(), set(seen_titles or ())
     budget = p["max_per_hour"] - sent_last_hour
     left = {s: cap - (sent_today or {}).get(s, 0) for s, cap in p["source_caps_per_day"].items()}
     for c in sorted(candidates, key=lambda c: (-c["heat"], -c["score"])):
@@ -45,19 +51,24 @@ def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int
             continue
         if c["entity_key"] and c["entity_key"] in entities:
             continue
+        if same_title(c.get("title")) in titles:  # re-uploads: same video, different link
+            continue
         if c.get("source") in left:
             if left[c["source"]] <= 0:
                 continue
             left[c["source"]] -= 1
         entities.add(c["entity_key"])
+        if same_title(c.get("title")):
+            titles.add(same_title(c["title"]))
         out.append(c)
         budget -= 1
     return out
 
 
 def sources_climbing(conn, batch: int, c: dict) -> int:
-    """How many sources the same thing (entity or name key) is climbing on (heat >= 2) in this batch."""
-    keys = [k for k in (c.get("entity_key"), c.get("alias_key")) if k]
+    """How many sources the same thing (entity or name key) is climbing on (heat >= 2) in this batch.
+    Hashtag links (tag:...) don't count: #dance rising on TikTok isn't the same thing as one dance video."""
+    keys = [k for k in (c.get("entity_key"), c.get("alias_key")) if k and not k.startswith("tag:")]
     if not keys:
         return 1
     q = ",".join("?" * len(keys))
@@ -107,7 +118,10 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
         o = p["quiet_override"]
         candidates = [c for c in candidates if c["heat"] >= o["min_heat"]
                       and sources_climbing(conn, latest, c) >= o["min_sources"]]
-    for c in pick(candidates, last_alert, sent_hour, now, p, sent_today):
+    seen_titles = {same_title(r[0]) for r in conn.execute(
+        "SELECT i.title FROM alerts_sent a JOIN items i ON i.id = a.item_id WHERE a.ts > ?",
+        (now - p["cooldown_hours"] * 3600,)) if r[0]}
+    for c in pick(candidates, last_alert, sent_hour, now, p, sent_today, seen_titles):
         title, body, click, actions = message(c)
         if quiet:
             send("🚨 " + title.removeprefix("🔥 "), "Big enough to break quiet hours.\n" + body, click=click,

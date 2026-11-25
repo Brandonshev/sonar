@@ -293,3 +293,22 @@ def test_held_alert_goes_out_after_quiet_hours():
     sent = []
     ntfy_alert.run(c, {"id": "alerts", "params": {"quiet_hours": QUIET}}, now=syd(9, 5), send=lambda *a, **k: sent.append(k))
     assert len(sent) >= 1 and sent[0]["priority"] == 4  # normal alert, normal priority
+
+
+def test_reuploads_with_the_same_title_alert_once():
+    a, b = cand(1, 96), cand(2, 95)
+    a["title"] = "JASMIN AND JAMES VIRAL TIKTOK DANCE TREND"
+    b["title"] = "Jasmin and James  viral tiktok dance trend"
+    assert [c["item_id"] for c in ntfy_alert.pick([a, b], {}, 0, NOW, P)] == [1]
+    # ...and a re-upload in a later batch is blocked by what was already alerted
+    assert ntfy_alert.pick([b], {}, 0, NOW, P, seen_titles={ntfy_alert.same_title(a["title"])}) == []
+
+
+def test_hashtag_link_is_not_a_second_source():
+    c = quiet_conn(40, False)
+    c.execute("UPDATE items SET alias_key = 'tag:couple'")
+    tag = db.upsert_item(c, "tiktok", {"kind": "hashtag", "external_id": "couple", "title": "#couple"})
+    c.execute("UPDATE items SET alias_key = 'tag:couple' WHERE id = ?", (tag,))
+    c.execute("INSERT INTO scores VALUES (?, ?, 4, 50, '[]')", (tag, syd(1)))
+    c.commit()
+    assert ntfy_alert.run(c, {"id": "alerts", "params": {"quiet_hours": QUIET}}, now=syd(1), send=lambda *a, **k: None) == 0
