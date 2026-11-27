@@ -10,6 +10,7 @@ Rules (all in pipeline.json params):
   quiet_hours            {"start": "22:00", "end": "09:00", "tz": ...}: overnight only a life-changing spike
   quiet_override         ...gets through: {"min_heat": 30, "min_sources": 2}. Everything else waits, and
                          whatever is still climbing at the end of quiet hours is sent then.
+  skip_categories        e.g. ["social.video"]: never alert for these (they still show everywhere else)
   warmup_hours           stay quiet until Sonar has this much history (early scores are guesses)
 The same entity climbing on two sources only alerts once per batch.
 """
@@ -23,7 +24,7 @@ from .notify import open_link, public_url, quiet_until, send_ntfy
 log = logging.getLogger("sonar.alerts")
 DEFAULTS = {"min_heat": 5, "min_score": 0, "cooldown_hours": 24, "rejump_score": 20,
             "max_per_hour": 5, "warmup_hours": 24, "source_caps_per_day": {},
-            "quiet_hours": None, "quiet_override": {"min_heat": 30, "min_sources": 2}}
+            "quiet_hours": None, "skip_categories": [], "quiet_override": {"min_heat": 30, "min_sources": 2}}
 
 
 def same_title(title) -> str:
@@ -113,6 +114,7 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
         "SELECT i.source, COUNT(*) FROM alerts_sent a JOIN items i ON i.id = a.item_id WHERE a.ts > ? GROUP BY i.source",
         (now - 86400,)).fetchall())
 
+    candidates = [c for c in candidates if c["category"] not in p["skip_categories"]]
     sent = 0
     quiet = quiet_until(now, p["quiet_hours"]) if p["quiet_hours"] else None
     if quiet:  # overnight: only genuinely life-changing spikes

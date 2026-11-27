@@ -98,6 +98,13 @@ def num(x) -> str:
     return f"{x / 1e6:.1f}M" if abs(x) >= 1e6 else f"{x / 1e3:.1f}k" if abs(x) >= 1e4 else f"{x:.0f}"
 
 
+def open_html(url) -> str:
+    """The link on the right of a row: straight to the thing itself (repo, video, article)."""
+    url = open_link(url)
+    return (f'<a class="open" href="{escape(url)}" target="_blank" rel="noreferrer" aria-label="Open">Open ↗</a>'
+            if url else '<span></span>')
+
+
 def spark(points: list, w=120, h=32, cls="spark") -> str:
     """Tiny SVG line + area for [(ts, value)]."""
     if len(points) < 2:
@@ -155,7 +162,8 @@ main{max-width:920px;margin:0 auto;padding:16px}
 h1{font-size:22px;letter-spacing:-.02em;margin:8px 0 4px}h2{font-size:16px;margin:28px 0 8px}
 .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
 .list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
-.row{display:grid;grid-template-columns:52px 1fr 120px;gap:12px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--line)}
+.row{display:grid;grid-template-columns:52px 1fr 120px 64px;gap:12px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--line)}
+.open{font-size:13px;color:var(--accent);text-align:right;white-space:nowrap}
 .score{font:600 22px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--hot);text-align:right}
 .score small{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:4px}
 .t{font-weight:560;overflow-wrap:anywhere}.why{color:var(--muted);font-size:13px;margin-top:2px}
@@ -184,7 +192,7 @@ td,th{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 .stats{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 8px}.stat{padding:8px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--muted)}
 .stat b{display:block;color:var(--fg);font-size:18px}
 footer{max-width:920px;margin:24px auto 40px;padding:0 16px;color:var(--muted);font-size:12px}
-@media (max-width:560px){.row{grid-template-columns:44px 1fr}.row svg.spark{grid-column:2;width:100%;height:28px}.score{font-size:19px}
+@media (max-width:560px){.row{grid-template-columns:44px 1fr}.row svg.spark{grid-column:2;width:100%;height:28px}.row .open{grid-column:2;text-align:left}.score{font-size:19px}
 .hide-sm{display:none}}
 """
 
@@ -298,7 +306,7 @@ class Site:
                 f'<li class="row"><div class="score">{r["score"]:.0f}<small>{r["heat"]:.1f}×</small></div>'
                 f'<div><a class="t" href="/item/{r["id"]}">{escape(r["title"] or "Untitled")}</a>'
                 f'<div class="why">{escape(why)}</div><div class="chips">{chips}</div></div>'
-                f'{spark(r["spark"])}</li>')
+                f'{spark(r["spark"])}{open_html(r.get("url"))}</li>')
         return f'<ul class="list">{"".join(out)}</ul>'
 
     def meta(self, latest, now):
@@ -434,7 +442,7 @@ class Site:
             f'<div class="chips"><span class="chip src">{escape(o["platform"])}</span><span class="chip">{escape(o["account"])}</span>'
             f'<span class="chip">{_x(o["outlier"])}× its channel</span>'
             f'{"<span class=chip>" + escape(o["fmt"]) + "</span>" if o["fmt"] else ""}<span class="chip">{num(o["views"] or 0)} views</span>'
-            f'<span class="chip">{ago(o["posted_at"], now)}</span></div></div><div class="hide-sm"></div></li>' for o in st["outliers"])
+            f'<span class="chip">{ago(o["posted_at"], now)}</span></div></div><div class="hide-sm"></div>{open_html(o["url"])}</li>' for o in st["outliers"])
         meta = f"ticked {ago(tick['at'], now)}" if tick.get("at") else "not run yet"
         note = f'<p class="warn">{escape(note)}</p>' if note else ""
         body = (f"<h1>Lookout</h1><p class='sub'>Short-video formats worth copying. A separate program on this server, "

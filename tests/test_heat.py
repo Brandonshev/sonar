@@ -124,3 +124,11 @@ def test_source_weight_lowers_score_but_not_heat(conn):
     assert half["heat"] == pytest.approx(full["heat"])          # alerts still see the real heat
     assert half["score"] == pytest.approx(full["score"] * 0.5, abs=0.1)
     assert any("ranked x0.5" in r for r in json.loads(half["reasons_json"]))
+
+
+
+def test_score_is_a_fixed_rating_not_relative(conn):
+    add(conn, "github", "small/fast", daily(40, 2, jump=570))   # today's best github repo, heat ~100+
+    s = scores(conn) if score_all(conn, NODE, now=NOW) else {}
+    assert 50 < s["small/fast"]["heat"] < 1000
+    assert s["small/fast"]["score"] < 90   # best of the day, but not "perfect"

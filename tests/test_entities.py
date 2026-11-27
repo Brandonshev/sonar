@@ -24,3 +24,12 @@ def test_entity_key(url, key):
 def test_normalize_same_page_variants():
     a = normalize_url("https://www.example.com/a/?utm_campaign=z")
     assert a == normalize_url("http://example.com/a") == "example.com/a"
+
+
+def test_latin_title():
+    from sonar.entities import latin_title
+    assert latin_title("Mini Polaroid Towel Cleaning ASMR! #diy 😳")
+    assert latin_title("¿Qué pasó? Día 30")
+    assert not latin_title("एक खरगोश की वजह से गिर गया पूरा शहर 🐇 #shorts")
+    assert not latin_title("예상치 못한 반전이 있는 댄스 챌린지")
+    assert latin_title(None)

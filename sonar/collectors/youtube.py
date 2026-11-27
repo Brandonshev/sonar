@@ -91,7 +91,7 @@ class YouTube(Collector):
         after = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - p.get("search_days", 2) * 86400))
         self.count(1, slot)  # counted up front so a quota stop can't cause a retry loop
         for topic in topics:
-            data = self.call("search", part="id", q=topic, type="video", order="viewCount",
+            data = self.call("search", part="id", q=topic, type="video", order="viewCount", relevanceLanguage="en",
                              publishedAfter=after, maxResults=p.get("search_results", 25))
             for it in data.get("items", []):
                 vid = it["id"].get("videoId")

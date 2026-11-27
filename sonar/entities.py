@@ -55,6 +55,12 @@ GENERIC_NAMES = {
 }
 
 
+def latin_title(title: str | None) -> bool:
+    """Mostly Latin letters: a cheap stand-in for "probably English" (titles carry no language)."""
+    letters = [ch for ch in title or "" if ch.isalpha()]
+    return not letters or sum(ch.isascii() for ch in letters) / len(letters) >= 0.7
+
+
 def words(name: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", re.sub(r"\(.*?\)", "", name.lower()))
 

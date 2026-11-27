@@ -26,7 +26,7 @@ log = logging.getLogger("sonar.companies")
 DAY = 86400
 DEFAULTS = {"floors": {"mentions": 2, "hn_mentions": 1, "reddit_mentions": 1, "views": 2000},
             "baseline_days": 7, "new_item_hours": 48, "min_observed_hours": 1,
-            "breadth_bonus_pct": 25, "breadth_min_heat": 2, "heat_for_100": 20, "trend_min_heat": 5}
+            "breadth_bonus_pct": 25, "breadth_min_heat": 2, "heat_for_100": 1000, "trend_min_heat": 5}
 LABELS = {"mentions": "news", "hn_mentions": "hn", "reddit_mentions": "reddit", "views": "wikipedia"}
 
 
@@ -90,7 +90,7 @@ def run(conn, node: dict, now: int | None = None) -> int:
             reasons.append(f"climbing on {breadth} signals at once (+{p['breadth_bonus_pct'] * (breadth - 1)}%)")
         results.append((c, heat, reasons, {k: round(h, 2) for k, (h, _) in ordered}))
 
-    top = math.log1p(max([h for _, h, _, _ in results] + [p["heat_for_100"]]))
+    top = math.log1p(p["heat_for_100"])  # fixed scale, like scorer.heat
     with conn:
         for c, heat, reasons, signals in results:
             item_id = db.upsert_item(conn, node["id"], {

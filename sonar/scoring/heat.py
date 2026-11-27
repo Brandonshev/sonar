@@ -18,6 +18,7 @@ import statistics
 import time
 
 from .. import db
+from ..entities import latin_title
 
 log = logging.getLogger("sonar.heat")
 DAY = 86400
@@ -28,7 +29,8 @@ DEFAULTS = {
     "early_weight": 1.0,
     "cross_source_bonus_pct": 25,
     "cross_source_min_heat": 2,  # an entity counts as "climbing" on a source at this heat
-    "heat_for_100": 20,          # a heat that earns score 100 even on a quiet day
+    "heat_for_100": 1000,        # score 100 = growing 1000x faster than usual: rare, not daily
+    "non_english_weight": 0.8,   # videos with mostly non-Latin titles rank a bit lower (score only)
     "trend_min_heat": 5,         # emit trend.found when heat crosses this
     "metrics": {},               # {"github": {"stars": 5}} = source -> metric -> floor
     "source_weights": {},        # {"hackernews": 0.6} = rank a high-volume source lower (score only)
@@ -136,21 +138,18 @@ def score_all(conn, node: dict, now: int | None = None) -> int:
         if others and r["heat"] > 0:
             r["heat"] *= 1 + p["cross_source_bonus_pct"] / 100 * len(others)
 
-    # Score 0-100, log-scaled per source.
-    by_source: dict = {}
+    # Score 0-100 on one fixed log scale: a rating, so 100 is earned (heat_for_100), never handed to
+    # whatever topped a source today.
+    top = math.log1p(p["heat_for_100"])
     for r in best.values():
-        by_source.setdefault(r["item"]["source"], []).append(r)
-    for group in by_source.values():
-        heats = sorted(max(r["heat"], 0) for r in group)
-        p99 = heats[min(len(heats) - 1, int(len(heats) * 0.99))]
-        top = math.log1p(max(p99, p["heat_for_100"]))
-        for r in group:
-            r["score"] = round(min(100.0, 100 * math.log1p(max(r["heat"], 0)) / top), 1)
+        r["score"] = round(min(100.0, 100 * math.log1p(max(r["heat"], 0)) / top), 1)
 
     # Source weights scale the 0-100 score only (ranking on the dashboard, digest and Lookout), so a
     # high-volume source doesn't crowd the lists. Heat stays honest: alerts still fire on real heat.
     for r in best.values():
         r["weight"] = p["source_weights"].get(r["item"]["source"], 1.0)
+        if r["item"]["category"] == "social.video" and not latin_title(r["item"]["title"]):
+            r["weight"] *= p["non_english_weight"]
         r["score"] = round(r["score"] * r["weight"], 1)
 
     with conn:

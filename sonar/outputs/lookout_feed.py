@@ -10,7 +10,7 @@ import time
 
 from .. import VERSION, db
 
-DEFAULTS = {"categories": ["social.video"], "min_score": 60, "cooldown_hours": 24, "rejump_score": 20,
+DEFAULTS = {"categories": ["social.video"], "min_score": 40, "cooldown_hours": 24, "rejump_score": 20,
             "max_examples": 5}
 FEED = "lookout"
 

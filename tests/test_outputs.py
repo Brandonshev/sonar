@@ -323,3 +323,15 @@ def test_hashtag_link_is_not_a_second_source():
 def test_open_link_sends_github_pdfs_to_the_raw_file(url, expect):
     from sonar.outputs.notify import open_link
     assert open_link(url) == expect
+
+
+def test_videos_never_alert():
+    c = quiet_conn(40, True)
+    c.execute("UPDATE items SET category = 'social.video'")
+    c.commit()
+    node = {"id": "alerts", "params": {"skip_categories": ["social.video"]}}
+    assert ntfy_alert.run(c, node, now=syd(12), send=lambda *a, **k: None) == 0
+    c.execute("UPDATE items SET category = 'repo'")
+    c.execute("UPDATE scores SET ts = ? WHERE heat = 40", (syd(12),))
+    c.commit()
+    assert ntfy_alert.run(c, node, now=syd(12), send=lambda *a, **k: None) == 1
