@@ -2,8 +2,8 @@
 
 Rules (all in pipeline.json params):
   min_heat / min_score   what counts as big (both must be met)
-  cooldown_hours         no repeat alert for the same item within this window...
-  rejump_score           ...unless its score has risen by at least this much since the last alert
+  mega_score             once something has alerted it never alerts again (re-uploads with the same
+                         title included), unless it goes mega: reaches this score when it hadn't before
   max_per_hour           never send more than this many alerts in any rolling hour
   source_caps_per_day    e.g. {"hackernews": 3}: at most this many a day from a high-volume source,
                          best first, so its good ones still get through without flooding you
@@ -22,7 +22,7 @@ from .. import db
 from .notify import open_link, public_url, quiet_until, send_ntfy
 
 log = logging.getLogger("sonar.alerts")
-DEFAULTS = {"min_heat": 5, "min_score": 0, "cooldown_hours": 24, "rejump_score": 20,
+DEFAULTS = {"min_heat": 5, "min_score": 0, "mega_score": 95,
             "max_per_hour": 5, "warmup_hours": 24, "source_caps_per_day": {},
             "quiet_hours": None, "skip_categories": [], "quiet_override": {"min_heat": 30, "min_sources": 2}}
 
@@ -32,14 +32,19 @@ def same_title(title) -> str:
     return " ".join((title or "").lower().split())
 
 
+def repeat_blocked(prev_score, score, p) -> bool:
+    """Already alerted (prev_score is its best alerted score)? Only a first jump to mega gets through."""
+    return prev_score is not None and not (score >= p["mega_score"] > prev_score)
+
+
 def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int, p: dict,
          sent_today: dict | None = None, seen_titles=None) -> list[dict]:
     """candidates: dicts with item_id, entity_key, source, heat, score (any order).
-    last_alert: item_id -> (ts, score) of its latest alert; sent_today: source -> alerts in the last 24h;
-    seen_titles: same_title() of everything alerted within the cooldown.
+    last_alert: item_id -> (ts, best score) of its alerts; sent_today: source -> alerts in the last 24h;
+    seen_titles: same_title() -> best score, for everything ever alerted.
     Returns the ones to send. Ordered by heat, the real "how much faster than usual", so a source's
     ranking weight never hides a genuinely big spike."""
-    out, entities, titles = [], set(), set(seen_titles or ())
+    out, entities, titles = [], set(), dict(seen_titles or {})
     budget = p["max_per_hour"] - sent_last_hour
     left = {s: cap - (sent_today or {}).get(s, 0) for s, cap in p["source_caps_per_day"].items()}
     for c in sorted(candidates, key=lambda c: (-c["heat"], -c["score"])):
@@ -48,19 +53,20 @@ def pick(candidates: list[dict], last_alert: dict, sent_last_hour: int, now: int
         if c["heat"] < p["min_heat"] or c["score"] < p["min_score"]:
             continue
         prev = last_alert.get(c["item_id"])
-        if prev and now - prev[0] < p["cooldown_hours"] * 3600 and c["score"] < (prev[1] or 0) + p["rejump_score"]:
+        if prev and repeat_blocked(prev[1] or 0, c["score"], p):
             continue
         if c["entity_key"] and c["entity_key"] in entities:
             continue
-        if same_title(c.get("title")) in titles:  # re-uploads: same video, different link
+        t = same_title(c.get("title"))
+        if t and repeat_blocked(titles.get(t), c["score"], p):  # re-uploads: same video, different link
             continue
         if c.get("source") in left:
             if left[c["source"]] <= 0:
                 continue
             left[c["source"]] -= 1
         entities.add(c["entity_key"])
-        if same_title(c.get("title")):
-            titles.add(same_title(c["title"]))
+        if t:
+            titles[t] = max(titles.get(t, 0), c["score"])
         out.append(c)
         budget -= 1
     return out
@@ -108,7 +114,7 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
            FROM scores s JOIN items i ON i.id = s.item_id WHERE s.ts = ? AND s.heat >= ?""",
         (latest, p["min_heat"]))]
     last_alert = {r["item_id"]: (r["ts"], r["score"]) for r in conn.execute(
-        "SELECT item_id, MAX(ts) AS ts, score FROM alerts_sent GROUP BY item_id")}
+        "SELECT item_id, MAX(ts) AS ts, MAX(score) AS score FROM alerts_sent GROUP BY item_id")}
     sent_hour = conn.execute("SELECT COUNT(*) FROM alerts_sent WHERE ts > ?", (now - 3600,)).fetchone()[0]
     sent_today = dict(conn.execute(
         "SELECT i.source, COUNT(*) FROM alerts_sent a JOIN items i ON i.id = a.item_id WHERE a.ts > ? GROUP BY i.source",
@@ -121,9 +127,10 @@ def run(conn, node: dict, now: int | None = None, send=send_ntfy) -> int:
         o = p["quiet_override"]
         candidates = [c for c in candidates if c["heat"] >= o["min_heat"]
                       and sources_climbing(conn, latest, c) >= o["min_sources"]]
-    seen_titles = {same_title(r[0]) for r in conn.execute(
-        "SELECT i.title FROM alerts_sent a JOIN items i ON i.id = a.item_id WHERE a.ts > ?",
-        (now - p["cooldown_hours"] * 3600,)) if r[0]}
+    seen_titles = {}
+    for title, score in conn.execute("SELECT i.title, a.score FROM alerts_sent a JOIN items i ON i.id = a.item_id"):
+        if same_title(title):
+            seen_titles[same_title(title)] = max(seen_titles.get(same_title(title), 0), score or 0)
     for c in pick(candidates, last_alert, sent_hour, now, p, sent_today, seen_titles):
         title, body, click, actions = message(c)
         if quiet:

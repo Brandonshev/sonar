@@ -1,4 +1,4 @@
-"""Alerts (cooldown, re-jump, cap, warm-up), digest and the daily schedule. No real ntfy/email."""
+"""Alerts (once-only unless mega, cap, warm-up), digest and the daily schedule. No real ntfy/email."""
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -25,11 +25,11 @@ def test_threshold():
     assert ntfy_alert.pick([cand(1, 30)], {}, 0, NOW, {**P, "min_score": 50}) == []
 
 
-def test_cooldown_blocks_repeat_within_24h():
-    last = {1: (NOW - 23 * H, 60)}
-    assert ntfy_alert.pick([cand(1, 75)], last, 0, NOW, P) == []        # +15: not enough
-    assert ntfy_alert.pick([cand(1, 80)], last, 0, NOW, P) != []        # +20: re-alert
-    assert ntfy_alert.pick([cand(1, 60)], {1: (NOW - 25 * H, 60)}, 0, NOW, P) != []  # cooldown over
+def test_alerted_once_unless_it_goes_mega():
+    last = {1: (NOW - 30 * 86400, 60)}
+    assert ntfy_alert.pick([cand(1, 90)], last, 0, NOW, P) == []        # a month later, +30: still no
+    assert ntfy_alert.pick([cand(1, 95)], last, 0, NOW, P) != []        # mega: one more alert
+    assert ntfy_alert.pick([cand(1, 99)], {1: (NOW - H, 96)}, 0, NOW, P) == []  # already alerted as mega
 
 
 def test_hourly_cap_and_best_first():
@@ -96,7 +96,7 @@ def test_run_sends_records_and_respects_cooldown(conn):
     (title, body), kw = sent[0]
     assert title == "🔥 Rocket" and "github · Rust · score 85" in body and "stars 10 -> 500" in body
     assert kw["click"] == "https://github.com/x/Rocket"
-    assert ntfy_alert.run(conn, node, now=NOW + 60, send=send) == 0  # cooldown
+    assert ntfy_alert.run(conn, node, now=NOW + 60, send=send) == 0  # already alerted
     assert conn.execute("SELECT type FROM events").fetchone()[0] == "alert.sent"
 
 
@@ -301,7 +301,7 @@ def test_reuploads_with_the_same_title_alert_once():
     b["title"] = "Jasmin and James  viral tiktok dance trend"
     assert [c["item_id"] for c in ntfy_alert.pick([a, b], {}, 0, NOW, P)] == [1]
     # ...and a re-upload in a later batch is blocked by what was already alerted
-    assert ntfy_alert.pick([b], {}, 0, NOW, P, seen_titles={ntfy_alert.same_title(a["title"])}) == []
+    assert ntfy_alert.pick([b], {}, 0, NOW, P, seen_titles={ntfy_alert.same_title(a["title"]): 96}) == []
 
 
 def test_hashtag_link_is_not_a_second_source():
